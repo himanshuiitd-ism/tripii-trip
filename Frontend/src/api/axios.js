@@ -1,8 +1,12 @@
+// src/api/axios.js
 import axios from "axios";
 
-const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true, // allow cookies (refreshToken)
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
+  withCredentials: true,
+  headers: {
+    Accept: "application/json",
+  },
 });
 
-export default API;
+export default api;

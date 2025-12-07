@@ -1,21 +1,14 @@
-import axios from "axios";
+// src/api/auth.js
+import api from "./axios.js";
 
-const API = axios.create({
-  baseURL: "http://localhost:8000/api/auth",
-  withCredentials: true,
-});
+export const loginRequest = (payload) =>
+  api.post("/api/auth/login", payload, { withCredentials: true });
 
-// SIGNUP
-export const registerRequest = async (data) => {
-  return API.post("/register", data);
-};
+export const registerRequest = (payload) =>
+  api.post("/api/auth/register", payload, { withCredentials: true });
 
-// LOGIN (username or email)
-export const loginRequest = async (data) => {
-  return API.post("/login", data);
-};
+export const googleLoginRequest = (credential) =>
+  api.post("/api/auth/google", { credential }, { withCredentials: true });
 
-// GOOGLE LOGIN
-export const googleLoginRequest = async (credential) => {
-  return API.post("/google", { credential });
-};
+export const getProfile = () =>
+  api.get("/api/user/me", { withCredentials: true });

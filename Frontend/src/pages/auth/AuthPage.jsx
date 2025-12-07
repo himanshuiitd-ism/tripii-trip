@@ -79,7 +79,7 @@ export default function AuthPage() {
 
       const res = await loginRequest(payload);
       console.log("Login success:", res.data);
-      navigate("/home");
+      navigate("/");
     } catch (err) {
       console.error("Login error:", err.response?.data || err);
     } finally {

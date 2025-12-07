@@ -1,10 +1,6 @@
 // src/api/community.js
 import axios from "@/api/axios";
 
-/**
- * Community API helpers
- */
-
 export const searchCommunities = (params = {}) =>
   axios.get("/api/community/searchCommunities", { params });
 
