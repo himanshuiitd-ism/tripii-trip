@@ -1,4 +1,4 @@
-import { LEVELS } from "./levelConfig";
+import { LEVELS } from "./levelConfig.js";
 
 export function recalcLevel(xp) {
   const xpPerSub = LEVELS.xpPerSublevel;

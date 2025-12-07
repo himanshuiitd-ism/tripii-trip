@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loginRequest, registerRequest, googleLoginRequest } from "@/api/auth";
+import { Navigate, useNavigate } from "react-router-dom";
 
 export default function AuthPage() {
   const [tab, setTab] = useState("signin");
@@ -62,6 +63,7 @@ export default function AuthPage() {
 
   const onChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const navigate = useNavigate();
 
   /* ------------------------ FORM HANDLERS ------------------------ */
 
@@ -77,6 +79,7 @@ export default function AuthPage() {
 
       const res = await loginRequest(payload);
       console.log("Login success:", res.data);
+      navigate("/home");
     } catch (err) {
       console.error("Login error:", err.response?.data || err);
     } finally {

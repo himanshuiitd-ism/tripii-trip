@@ -7,6 +7,7 @@ import authroutes from "./routes/auth.routes.js";
 import http from "http";
 import { initSocket } from "./socket/server.js";
 import communityRoute from "./routes/community.routes.js";
+import postRoute from "./routes/post.routes.js";
 
 dotenv.config({});
 
@@ -37,6 +38,7 @@ app.use(cors(corsOption));
 //API routes
 app.use("/api/auth", authroutes);
 app.use("/api/community", communityRoute);
+app.use("/api/post", postRoute);
 
 app.listen(PORT, () => {
   connectDB();

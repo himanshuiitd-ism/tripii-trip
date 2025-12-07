@@ -13,19 +13,17 @@ import { Post } from "../../models/user/post.model.js";
 import { Comment } from "../../models/user/comment.model.js";
 import { User } from "../../models/user/user.model.js";
 import { Trip } from "../../models/trip/trip.model.js";
-import { PointsLog } from "../../models/user/pointLog.model.js";
 
 // POINTS & LEVEL ENGINE
-import { awardPoints } from "../../points/getPoints.js";
-import { rollbackPointsForModel } from "../../points/rollbackPointsForModel.js";
-import { recalcLevel } from "../../points/levelEngine.js";
+import { awardPoints } from "../../points/awardPoints.js";
+import { rollbackPointsForModel } from "../../points/rollbackPoints.js";
 
 // REALTIME SOCKET
 // Your socket server file is socket/server.js — import named export helpers from there
 import { emitToUser } from "../../socket/server.js";
 
 // NOTIFICATIONS (same folder)
-import { createNotification } from "./notification.controller.js";
+import { sendNotification } from "./notification.controller.js";
 import { getCommentReward } from "../../points/diminishingCommentReward.js";
 
 /**
@@ -92,23 +90,29 @@ export const createNormalPost = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { caption } = req.body;
 
-  const uploadedFiles = normalizeFiles(req);
-  if (!uploadedFiles.length) {
-    throw new ApiError(400, "At least one media file is required");
+  // Allow empty text only if at least one media exists
+  if (!caption?.trim() && !req.files) {
+    throw new ApiError(400, "Write something or add a media file.");
   }
 
-  const media = await uploadMediaFiles(uploadedFiles);
+  const uploadedFiles = normalizeFiles(req);
+  let media = [];
+
+  // Upload media only if files exist
+  if (uploadedFiles.length > 0) {
+    media = await uploadMediaFiles(uploadedFiles);
+  }
 
   const post = await Post.create({
     type: "normal",
-    caption: caption || "",
-    media,
+    caption: caption?.trim() || "",
+    media, // may be empty []
     author: userId,
   });
 
   await User.findByIdAndUpdate(userId, { $push: { posts: post._id } });
 
-  // Award points — include metadata so spam rules work
+  // Award points — still valid for both text-only & media posts
   const points = await awardPoints(userId, "post_created", {
     model: "Post",
     modelId: post._id,
@@ -249,7 +253,7 @@ export const toggleLike = asyncHandler(async (req, res) => {
       actorId: userId,
     });
 
-    const notif = await createNotification({
+    const notif = await sendNotification({
       recipient: post.author._id,
       sender: userId,
       type: "like",
@@ -308,7 +312,7 @@ export const addComment = asyncHandler(async (req, res) => {
 
   // Notify author (if not same person)
   if (post.author._id.toString() !== userId.toString()) {
-    const notif = await createNotification({
+    const notif = await sendNotification({
       sender: userId,
       recipient: post.author._id,
       type: "comment",

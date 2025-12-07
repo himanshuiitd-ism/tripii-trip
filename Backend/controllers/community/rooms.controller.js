@@ -1,3 +1,4 @@
+// controllers/community/room.controller.js
 import mongoose from "mongoose";
 import asyncHandler from "../../utils/asyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
@@ -13,8 +14,40 @@ import { MessageInRoom } from "../../models/community/messageInRoom.model.js";
 import { Trip } from "../../models/trip/trip.model.js";
 import { Activity } from "../../models/community/activity.model.js";
 
-import { sendNotification } from "../notification.controller.js";
-import { io } from "../../socket/socket.js";
+import { sendNotification } from "../user/notification.controller.js";
+import {
+  emitToUser,
+  emitToCommunity,
+  emitToRoom,
+} from "../../socket/server.js";
+
+/**
+ * Small local helper to sort members for display.
+ * Prioritizes: owner > moderator > member, then users you follow, then followers, then others.
+ */
+const sortMembers = (
+  members = [],
+  followingSet = new Set(),
+  followersSet = new Set()
+) => {
+  return members.slice().sort((a, b) => {
+    const roleOrder = (r) => (r === "owner" ? 0 : r === "moderator" ? 1 : 2);
+    const ra = roleOrder(a.role || "member");
+    const rb = roleOrder(b.role || "member");
+    if (ra !== rb) return ra - rb;
+
+    const aId = a.user?._id?.toString?.() || a.user?.toString?.();
+    const bId = b.user?._id?.toString?.() || b.user?.toString?.();
+
+    const aFollow = followingSet.has(aId) ? 0 : followersSet.has(aId) ? 1 : 2;
+    const bFollow = followingSet.has(bId) ? 0 : followersSet.has(bId) ? 1 : 2;
+    if (aFollow !== bFollow) return aFollow - bFollow;
+
+    const aName = (a.user?.username || a.displayName || "").toLowerCase();
+    const bName = (b.user?.username || b.displayName || "").toLowerCase();
+    return aName.localeCompare(bName);
+  });
+};
 
 /**
  * Upload media helper for room messages
@@ -37,6 +70,9 @@ const uploadRoomMedia = async (file, roomId) => {
   };
 };
 
+/* ===========================
+   CREATE ROOM (with Trip option)
+   =========================== */
 export const createRoom = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
@@ -46,20 +82,17 @@ export const createRoom = asyncHandler(async (req, res) => {
     description = "",
     startDate,
     endDate,
-    roomtype, // Normal | Trip
+    roomtype, // "Normal" | "Trip"
     isEphemeral = false,
     tags = [],
     initialMembers = [],
 
-    // Trip-only
+    // Trip-only fields
     tripType,
     location,
   } = req.body;
 
-  /* ------------------------------------------------------
-   VALIDATIONS
-  ------------------------------------------------------ */
-
+  // Basic validations
   if (!name?.trim()) throw new ApiError(400, "Room name is required");
   if (!startDate || !endDate)
     throw new ApiError(400, "Start and end date are required");
@@ -80,7 +113,7 @@ export const createRoom = asyncHandler(async (req, res) => {
   if (!membership)
     throw new ApiError(403, "Only community members can create rooms");
 
-  if (!community.settings.allowMemberRooms && membership.role !== "admin")
+  if (!community.settings?.allowMemberRooms && membership.role !== "admin")
     throw new ApiError(403, "Only admins can create rooms");
 
   // Trip-only required fields
@@ -92,15 +125,10 @@ export const createRoom = asyncHandler(async (req, res) => {
       throw new ApiError(400, "location.name is required for trip");
   }
 
-  /* ------------------------------------------------------
-   UPLOAD BACKGROUND IMAGE
-  ------------------------------------------------------ */
-
+  // Background image (required)
   const bgFile = req.files?.backgroundImage?.[0];
   if (!bgFile) throw new ApiError(400, "Room background image is required");
-
   const uri = getDataUri(bgFile);
-
   const uploadedBg = await cloudinary.uploader.upload(uri.content, {
     folder: `communities/${communityId}/rooms/backgrounds`,
     transformation: [
@@ -113,34 +141,30 @@ export const createRoom = asyncHandler(async (req, res) => {
     publicId: uploadedBg.public_id,
   };
 
-  /* ------------------------------------------------------
-   BUILD ROOM MEMBER LIST
-  ------------------------------------------------------ */
-
+  // Build members list (creator is owner)
   const roomMembers = [{ user: userId, role: "owner", joinedAt: new Date() }];
 
-  for (const memberId of initialMembers) {
-    if (!mongoose.Types.ObjectId.isValid(memberId)) continue;
-    if (memberId === userId.toString()) continue;
+  if (Array.isArray(initialMembers) && initialMembers.length > 0) {
+    for (const memberId of initialMembers) {
+      if (!mongoose.Types.ObjectId.isValid(memberId)) continue;
+      if (memberId === userId.toString()) continue;
 
-    const mem = await CommunityMembership.findOne({
-      community: communityId,
-      user: memberId,
-    });
-
-    if (mem) {
-      roomMembers.push({
+      const mem = await CommunityMembership.findOne({
+        community: communityId,
         user: memberId,
-        role: "member",
-        joinedAt: new Date(),
       });
+
+      if (mem) {
+        roomMembers.push({
+          user: memberId,
+          role: "member",
+          joinedAt: new Date(),
+        });
+      }
     }
   }
 
-  /* ------------------------------------------------------
-   CREATE ROOM
-  ------------------------------------------------------ */
-
+  // Create Room
   const room = await Room.create({
     name: name.trim(),
     description: description.trim(),
@@ -158,13 +182,10 @@ export const createRoom = asyncHandler(async (req, res) => {
 
   let trip = null;
 
-  /* ------------------------------------------------------
-   CREATE TRIP (IF APPLICABLE)
-  ------------------------------------------------------ */
-
+  // If Trip, auto-create Trip and link
   if (roomtype === "Trip") {
     trip = await Trip.create({
-      // shared values
+      // Shared fields (no duplication requested by you)
       title: name,
       description,
       startDate,
@@ -173,7 +194,7 @@ export const createRoom = asyncHandler(async (req, res) => {
       createdBy: userId,
       participants: roomMembers.map((m) => m.user),
 
-      // Trip-only fields
+      // Trip-only
       type: tripType,
       location,
       visibility: "private",
@@ -183,22 +204,18 @@ export const createRoom = asyncHandler(async (req, res) => {
       createdByType: "user",
     });
 
-    // link room → trip
+    // link & external navigation
     room.linkedTrip = trip._id;
-
-    // external link for frontend navigation
     room.externalLink = {
       label: "Open Trip",
-      url: `${process.env.FRONTEND_URL}/trip/${trip._id}`,
+      url: `${process.env.FRONTEND_URL?.replace(/\/$/, "") || ""}/trip/${
+        trip._id
+      }`,
     };
-
     await room.save();
   }
 
-  /* ------------------------------------------------------
-   SAVE ROOM TO COMMUNITY + USERS
-  ------------------------------------------------------ */
-
+  // Update community's rooms list & add room reference to users
   await Community.updateOne(
     { _id: communityId },
     { $addToSet: { rooms: room._id } }
@@ -209,76 +226,88 @@ export const createRoom = asyncHandler(async (req, res) => {
     { $addToSet: { rooms: room._id } }
   );
 
-  /* ------------------------------------------------------
-   ACTIVITY LOG
-  ------------------------------------------------------ */
-
+  // Activity log for room/trip creation
   const activity = await Activity.create({
     community: communityId,
     actor: userId,
     type: roomtype === "Trip" ? "trip_created" : "room_created",
-    payload: {
-      roomId: room._id,
-      tripId: trip ? trip._id : null,
-      name: room.name,
-    },
+    payload: { roomId: room._id, tripId: trip?._id || null, name: room.name },
   });
 
-  /* ------------------------------------------------------
-   NOTIFICATIONS
-  ------------------------------------------------------ */
-
-  await Promise.all(
+  // Notifications to initial members (skip creator)
+  await Promise.allSettled(
     roomMembers
-      .filter((m) => m.user.toString() !== userId.toString()) // skip creator
+      .filter((m) => m.user.toString() !== userId.toString())
       .map(async (member) => {
         const memberId = member.user.toString();
 
         // Room notification
-        await sendNotification({
-          recipient: memberId,
-          sender: userId,
-          type: "room_added",
-          message:
-            roomtype === "Trip"
-              ? `${req.user.username} added you to a new trip room: ${room.name}`
-              : `${req.user.username} added you to a new room: ${room.name}`,
-          room: room._id,
-          community: communityId,
-          metadata: { roomId: room._id, communityId },
-        });
-
-        // Trip notification
-        if (roomtype === "Trip" && trip) {
-          await sendNotification({
+        try {
+          const roomNoti = await sendNotification({
             recipient: memberId,
             sender: userId,
-            type: "trip_invite",
-            message: `${req.user.username} created a trip: ${trip.title}`,
-            trip: trip._id,
+            type: "room_added",
+            message:
+              roomtype === "Trip"
+                ? `${req.user.username} added you to a new trip room: ${room.name}`
+                : `${req.user.username} added you to a new room: ${room.name}`,
+            room: room._id,
             community: communityId,
-            metadata: {
-              tripId: trip._id,
-              roomId: room._id,
-            },
+            metadata: { roomId: room._id, communityId },
           });
+
+          // emit lightweight event to user (if online)
+          try {
+            emitToUser(memberId, "notification:new", roomNoti);
+          } catch (e) {}
+        } catch (err) {
+          console.error("Failed to send room notification to", memberId, err);
+        }
+
+        // Trip notification (only if trip)
+        if (roomtype === "Trip" && trip) {
+          try {
+            const tripNoti = await sendNotification({
+              recipient: memberId,
+              sender: userId,
+              type: "trip_invite",
+              message: `${req.user.username} created a trip: ${trip.title}`,
+              trip: trip._id,
+              community: communityId,
+              metadata: { tripId: trip._id, roomId: room._id },
+            });
+
+            try {
+              emitToUser(memberId, "notification:new", tripNoti);
+            } catch (e) {}
+          } catch (err) {
+            console.error("Failed to send trip notification to", memberId, err);
+          }
         }
       })
   );
 
-  /* ------------------------------------------------------
-   SOCKET BROADCAST TO COMMUNITY
-  ------------------------------------------------------ */
-
-  io.to(communityId.toString()).emit("roomCreated", {
-    room: await room.populate("createdBy", "username profilePicture.url"),
-    trip,
-    activity,
-  });
-
-  /* ------------------------------------------------------
-   RESPONSE
-  ------------------------------------------------------ */
+  // Real-time broadcast: emit to community room and to the room's socket (if any)
+  try {
+    const populatedRoom = await room.populate(
+      "createdBy",
+      "username profilePicture.url"
+    );
+    emitToCommunity(communityId.toString(), "room:created", {
+      room: populatedRoom,
+      trip,
+      activity,
+    });
+    // Also emit to room namespace so any socket in that room gets initial data
+    emitToRoom(room._id.toString?.() || room._id.toString(), "room:created", {
+      room: populatedRoom,
+      trip,
+      activity,
+    });
+  } catch (err) {
+    // non fatal
+    console.error("Emit error after room creation:", err);
+  }
 
   return res
     .status(201)
@@ -293,41 +322,38 @@ export const createRoom = asyncHandler(async (req, res) => {
     );
 });
 
+/* ===========================
+   GET COMMUNITY ROOMS
+   =========================== */
 export const getCommunityRooms = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
 
-  // Validate community membership
   const membership = await CommunityMembership.findOne({
     community: communityId,
     user: userId,
   });
-
-  if (!membership) {
+  if (!membership)
     throw new ApiError(403, "Only members can view rooms of this community");
-  }
 
-  // --- Fetch user's following/followers ---
   const user = await User.findById(userId).select("following followers").lean();
+  const followingSet = new Set(
+    (user.following || []).map((id) => id.toString())
+  );
+  const followersSet = new Set(
+    (user.followers || []).map((id) => id.toString())
+  );
 
-  const followingSet = new Set(user.following.map((id) => id.toString()));
-  const followersSet = new Set(user.followers.map((id) => id.toString()));
-
-  // --- Fetch rooms ---
   const rooms = await Room.find({ parentCommunity: communityId })
     .populate("createdBy", "username profilePicture.url")
     .populate("linkedTrip", "title startDate endDate location")
-    .populate({
-      path: "members.user",
-      select: "username profilePicture.url",
-    })
+    .populate({ path: "members.user", select: "username profilePicture.url" })
     .sort({ createdAt: -1 })
     .lean();
 
-  // --- Sort members in each room ---
-  const processedRooms = rooms.map((room) => ({
-    ...room,
-    members: sortMembers(room.members, followingSet, followersSet),
+  const processedRooms = rooms.map((r) => ({
+    ...r,
+    members: sortMembers(r.members || [], followingSet, followersSet),
   }));
 
   return res
@@ -341,44 +367,41 @@ export const getCommunityRooms = asyncHandler(async (req, res) => {
     );
 });
 
+/* ===========================
+   GET MY ROOMS (COMMUNITY)
+   =========================== */
 export const getMyCommunityRooms = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
 
-  // Validate membership
   const membership = await CommunityMembership.findOne({
     community: communityId,
     user: userId,
   });
-
-  if (!membership) {
+  if (!membership)
     throw new ApiError(403, "Only members can view rooms of this community");
-  }
 
-  // --- Fetch user's follow relations ---
   const user = await User.findById(userId).select("following followers").lean();
+  const followingSet = new Set(
+    (user.following || []).map((id) => id.toString())
+  );
+  const followersSet = new Set(
+    (user.followers || []).map((id) => id.toString())
+  );
 
-  const followingSet = new Set(user.following.map((id) => id.toString()));
-  const followersSet = new Set(user.followers.map((id) => id.toString()));
-
-  // --- Fetch rooms where user is a member ---
   const rooms = await Room.find({
     parentCommunity: communityId,
     "members.user": userId,
   })
     .populate("createdBy", "username profilePicture.url")
     .populate("linkedTrip", "title startDate endDate location")
-    .populate({
-      path: "members.user",
-      select: "username profilePicture.url",
-    })
+    .populate({ path: "members.user", select: "username profilePicture.url" })
     .sort({ createdAt: -1 })
     .lean();
 
-  // Sort members based on follow priority
-  const processedRooms = rooms.map((room) => ({
-    ...room,
-    members: sortMembers(room.members, followingSet, followersSet),
+  const processedRooms = rooms.map((r) => ({
+    ...r,
+    members: sortMembers(r.members || [], followingSet, followersSet),
   }));
 
   return res
@@ -392,22 +415,22 @@ export const getMyCommunityRooms = asyncHandler(async (req, res) => {
     );
 });
 
+/* ===========================
+   GET MY ROOMS ACROSS COMMUNITIES
+   =========================== */
 export const getMyRoomsAcrossCommunities = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
-  // Find all communities the user belongs to
   const memberships = await CommunityMembership.find({ user: userId })
     .select("community")
     .lean();
-
   const communityIds = memberships.map((m) => m.community);
 
-  // Fetch rooms where user is a member across all these communities
   const rooms = await Room.find({
     parentCommunity: { $in: communityIds },
     "members.user": userId,
   })
-    .select("name backgroundImage.url parentCommunity")
+    .select("name roombackgroundImage parentCommunity linkedTrip")
     .populate("parentCommunity", "name")
     .populate("linkedTrip", "title startDate endDate location")
     .lean();
@@ -423,11 +446,13 @@ export const getMyRoomsAcrossCommunities = asyncHandler(async (req, res) => {
     );
 });
 
+/* ===========================
+   GET SUGGESTED ROOMS
+   =========================== */
 export const getSuggestedRooms = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const memberships = await CommunityMembership.find({ user: userId }).lean();
-
   const communityIds = memberships.map((m) => m.community);
 
   const rooms = await Room.aggregate([
@@ -437,14 +462,8 @@ export const getSuggestedRooms = asyncHandler(async (req, res) => {
         "members.user": { $ne: userId },
       },
     },
-    {
-      $addFields: {
-        memberCount: { $size: "$members" },
-      },
-    },
-    {
-      $sort: { memberCount: -1 },
-    },
+    { $addFields: { memberCount: { $size: "$members" } } },
+    { $sort: { memberCount: -1 } },
   ]);
 
   return res
@@ -452,80 +471,80 @@ export const getSuggestedRooms = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, { rooms }, "Suggested rooms fetched"));
 });
 
+/* ===========================
+   JOIN ROOM
+   =========================== */
 export const joinRoom = asyncHandler(async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user._id;
 
-  // Fetch room
   const room = await Room.findById(roomId).select("parentCommunity members");
-  if (!room) {
-    throw new ApiError(404, "Room not found");
-  }
+  if (!room) throw new ApiError(404, "Room not found");
 
-  // Ensure user is in the community of the room
   const membership = await CommunityMembership.findOne({
     community: room.parentCommunity,
     user: userId,
   });
-
-  if (!membership) {
+  if (!membership)
     throw new ApiError(403, "Only community members can join this room");
-  }
 
-  // Check if already a member
-  const isAlreadyMember = room.members.some(
+  const already = room.members.some(
     (m) => m.user.toString() === userId.toString()
   );
-  if (isAlreadyMember) {
-    throw new ApiError(409, "Already a member of this room");
-  }
+  if (already) throw new ApiError(409, "Already a member of this room");
 
-  // Add user to room
-  room.members.push({
-    user: userId,
-    role: "member",
-    joinedAt: new Date(),
-  });
+  room.members.push({ user: userId, role: "member", joinedAt: new Date() });
   await room.save();
 
-  // Add room to user's list
-  await User.findByIdAndUpdate(userId, {
-    $addToSet: { rooms: roomId },
-  });
+  await User.findByIdAndUpdate(userId, { $addToSet: { rooms: roomId } });
 
-  // Fetch joining user info
   const userData = await User.findById(userId)
     .select("username profilePicture.url")
     .lean();
 
-  // Socket event (broadcast to room)
-  io.to(roomId.toString()).emit("userJoinedRoom", {
+  // Emit to room
+  emitToRoom(roomId.toString(), "room:userJoined", {
     roomId,
     user: userData,
     joinedAt: new Date(),
   });
+
+  // Also notify room members about new join (optional)
+  try {
+    await sendNotification({
+      recipient: room.members
+        .map((m) => m.user)
+        .filter((uid) => uid.toString() !== userId.toString()),
+      sender: userId,
+      type: "member_joined_room",
+      message: `${userData.username} joined ${room.name}`,
+      room: room._id,
+      community: room.parentCommunity,
+      metadata: { roomId: room._id },
+    });
+  } catch (e) {
+    // bulk notification might not be desired; keep non-fatal
+  }
 
   return res
     .status(200)
     .json(new ApiResponse(200, { user: userData }, "Joined room successfully"));
 });
 
+/* ===========================
+   LEAVE ROOM
+   =========================== */
 export const leaveRoom = asyncHandler(async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user._id;
 
-  const room = await Room.findById(roomId);
-  if (!room) {
-    throw new ApiError(404, "Room not found");
-  }
+  const room = await Room.findById(roomId).select("members");
+  if (!room) throw new ApiError(404, "Room not found");
 
   const memberIndex = room.members.findIndex(
     (m) => m.user.toString() === userId.toString()
   );
-
-  if (memberIndex === -1) {
-    throw new ApiError(404, "You are not a member");
-  }
+  if (memberIndex === -1) throw new ApiError(404, "You are not a member");
 
   if (room.members[memberIndex].role === "owner") {
     throw new ApiError(
@@ -537,81 +556,70 @@ export const leaveRoom = asyncHandler(async (req, res) => {
   room.members.splice(memberIndex, 1);
   await room.save();
 
-  // Update user rooms
-  await User.findByIdAndUpdate(userId, {
-    $pull: { rooms: roomId },
-  });
+  await User.findByIdAndUpdate(userId, { $pull: { rooms: roomId } });
 
-  // Emit to room
-  io.to(roomId.toString()).emit("memberLeftRoom", { roomId, userId });
+  emitToRoom(roomId.toString(), "room:memberLeft", { roomId, userId });
 
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Left room successfully"));
 });
 
+/* ===========================
+   SEND ROOM MESSAGE
+   =========================== */
 export const sendRoomMessage = asyncHandler(async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user._id;
   const { content = "", gifUrl } = req.body;
-
   const file = req.files?.media?.[0];
 
-  // room exists?
   const room = await Room.findById(roomId).select("members parentCommunity");
   if (!room) throw new ApiError(404, "Room not found");
 
-  // user is member?
   const isMember = room.members.some(
     (m) => m.user.toString() === userId.toString()
   );
   if (!isMember) throw new ApiError(403, "Only room members can send messages");
 
-  // empty message?
-  if (!content && !gifUrl && !file) {
+  if (!content && !gifUrl && !file)
     throw new ApiError(400, "Message must contain text, media, or GIF");
-  }
 
   const messageData = {
     room: roomId,
     sender: userId,
-    content: content.trim(),
+    content: content?.trim() || "",
     type: "text",
   };
 
-  // file upload handling
   if (file) {
     const uploaded = await uploadRoomMedia(file, roomId);
-
-    messageData.type = uploaded.mimeType.startsWith("image/")
+    messageData.type = uploaded.mimeType?.startsWith("image/")
       ? "image"
-      : uploaded.mimeType.startsWith("video/")
+      : uploaded.mimeType?.startsWith("video/")
       ? "video"
       : "document";
-
     messageData.media = uploaded;
-  }
-
-  // gif handling
-  if (gifUrl) {
+  } else if (gifUrl) {
     messageData.type = "gif";
     messageData.media = { url: gifUrl };
   }
 
   const message = await MessageInRoom.create(messageData);
+  await message.populate("sender", "username profilePicture");
 
-  await message.populate("sender", "username profilePicture.url");
-
-  // SOCKET: send real-time update to room
-  io.to(roomId.toString()).emit("room:newMessage", message);
+  // Emit to room via wrapper
+  emitToRoom(roomId.toString(), "room:newMessage", message);
 
   return res.status(201).json(new ApiResponse(201, message, "Message sent"));
 });
 
+/* ===========================
+   GET ROOM MESSAGES
+   =========================== */
 export const getRoomMessages = asyncHandler(async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user._id;
-
   const { page = 1, limit = 50, before } = req.query;
 
   const room = await Room.findById(roomId).select("members");
@@ -623,18 +631,14 @@ export const getRoomMessages = asyncHandler(async (req, res) => {
   if (!isMember) throw new ApiError(403, "Only members can view messages");
 
   const query = { room: roomId };
-
-  if (before) {
-    query.createdAt = { $lt: new Date(before) };
-  }
+  if (before) query.createdAt = { $lt: new Date(before) };
 
   const messages = await MessageInRoom.find(query)
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .populate("sender", "username profilePicture.url")
+    .populate("sender", "username profilePicture")
     .lean();
 
-  // reverse to chronological order
   messages.reverse();
 
   return res.status(200).json(
@@ -650,11 +654,13 @@ export const getRoomMessages = asyncHandler(async (req, res) => {
   );
 });
 
+/* ===========================
+   REACT TO ROOM MESSAGE
+   =========================== */
 export const reactToRoomMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const { emoji } = req.body;
   const userId = req.user._id;
-
   if (!emoji?.trim()) throw new ApiError(400, "Emoji is required");
 
   const message = await MessageInRoom.findById(messageId);
@@ -669,9 +675,7 @@ export const reactToRoomMessage = asyncHandler(async (req, res) => {
   const existing = message.reactions.find(
     (r) => r.emoji === emoji && r.by.toString() === userId.toString()
   );
-
   let updated;
-
   if (existing) {
     updated = await MessageInRoom.findByIdAndUpdate(
       messageId,
@@ -686,8 +690,7 @@ export const reactToRoomMessage = asyncHandler(async (req, res) => {
     );
   }
 
-  // SOCKET UPDATE
-  io.to(message.room.toString()).emit("room:reactionUpdated", {
+  emitToRoom(message.room.toString(), "room:reactionUpdated", {
     messageId,
     reactions: updated.reactions,
   });
@@ -703,6 +706,9 @@ export const reactToRoomMessage = asyncHandler(async (req, res) => {
     );
 });
 
+/* ===========================
+   DELETE ROOM MESSAGE
+   =========================== */
 export const deleteRoomMessage = asyncHandler(async (req, res) => {
   const { messageId } = req.params;
   const userId = req.user._id;
@@ -720,12 +726,10 @@ export const deleteRoomMessage = asyncHandler(async (req, res) => {
 
   const isSender = message.sender.toString() === userId.toString();
   const isModerator = ["owner", "moderator"].includes(member.role);
-
-  if (!isSender && !isModerator) {
+  if (!isSender && !isModerator)
     throw new ApiError(403, "Only sender or moderator can delete messages");
-  }
 
-  // Delete cloud media if exists
+  // delete cloudinary media if present
   if (message.media?.publicId) {
     try {
       await cloudinary.uploader.destroy(message.media.publicId);
@@ -736,8 +740,7 @@ export const deleteRoomMessage = asyncHandler(async (req, res) => {
 
   await MessageInRoom.findByIdAndDelete(messageId);
 
-  // SOCKET: message deleted event
-  io.to(message.room.toString()).emit("room:messageDeleted", {
+  emitToRoom(message.room.toString(), "room:messageDeleted", {
     messageId,
     roomId: message.room.toString(),
   });
