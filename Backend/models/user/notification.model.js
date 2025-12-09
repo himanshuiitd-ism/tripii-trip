@@ -28,7 +28,7 @@ const notificationSchema = new Schema(
       type: String,
       enum: [
         // SOCIAL
-        "post_like",
+        "like",
         "post_comment",
         "comment_like",
         "reply",

@@ -1,3 +1,4 @@
+// src/api/post.js
 import api from "./axios.js";
 
 export const getFeed = ({ page = 1, limit = 10 } = {}) =>
@@ -7,14 +8,8 @@ export const getFeed = ({ page = 1, limit = 10 } = {}) =>
 
 export const createPost = (formData) =>
   api.post("/api/post/createPost", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
     withCredentials: true,
-  });
-
-export const createTripPost = (formData) =>
-  api.post("/api/post/createTripPost", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    withCredentials: true,
   });
 
 export const toggleLike = (postId) =>

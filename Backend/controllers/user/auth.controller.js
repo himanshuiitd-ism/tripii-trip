@@ -16,7 +16,6 @@ export const googleLogin = asyncHandler(async (req, res) => {
     const payload = ticket.getPayload();
     const { email, sub: googleId } = payload;
 
-    // User must EXIST already
     let user = await User.findOne({ email });
 
     if (!user) {
@@ -26,7 +25,6 @@ export const googleLogin = asyncHandler(async (req, res) => {
       });
     }
 
-    // Link Google to existing user (if not linked)
     if (!user.googleId) {
       user.googleId = googleId;
       user.authProviders.push({
@@ -36,16 +34,39 @@ export const googleLogin = asyncHandler(async (req, res) => {
       await user.save();
     }
 
-    // Generate tokens
-    const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateRefreshToken();
+    // ✅ Use generateAccessAndRefreshToken helper
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      user._id
+    );
 
-    res.json({
-      success: true,
-      user,
-      accessToken,
-      refreshToken,
-    });
+    // ✅ Get fresh user profile
+    const profile = await User.findById(user._id).select(
+      "-password -refreshToken"
+    );
+
+    res
+      .cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      })
+      .cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      })
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            user: profile, // ✅ NOW DEFINED
+            accessToken,
+            refreshToken,
+          },
+          "Login successful"
+        )
+      );
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Google login failed" });

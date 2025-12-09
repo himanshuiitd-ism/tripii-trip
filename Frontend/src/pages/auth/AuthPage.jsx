@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { loginRequest, registerRequest, googleLoginRequest } from "@/api/auth";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { setAuthUser } from "@/redux/authslice";
 
 export default function AuthPage() {
   const [tab, setTab] = useState("signin");
@@ -12,6 +14,8 @@ export default function AuthPage() {
     email: "",
   });
 
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   /* -------------------------------------------------------
@@ -49,11 +53,25 @@ export default function AuthPage() {
     document.body.appendChild(script);
   }, []);
 
+  /* -------------------------------------------------------
+      GOOGLE LOGIN HANDLER (UPDATED WITH REDIRECT)
+  ---------------------------------------------------------*/
   async function handleGoogleResponse(response) {
     try {
       setLoading(true);
+
       const res = await googleLoginRequest(response.credential);
-      console.log("Google Login success:", res.data);
+      console.log("Google Login success:", res);
+      dispatch(
+        setAuthUser({
+          user: res.data.user,
+          accessToken: res.data.accessToken,
+          refreshToken: res.data.refreshToken,
+        })
+      );
+
+      // redirect to homepage
+      navigate("/");
     } catch (err) {
       console.error("Google Login Error:", err.response?.data || err);
     } finally {
@@ -63,10 +81,8 @@ export default function AuthPage() {
 
   const onChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  const navigate = useNavigate();
 
-  /* ------------------------ FORM HANDLERS ------------------------ */
-
+  /* ------------------------ SIGN IN ------------------------ */
   const handleSignIn = async (e) => {
     e.preventDefault();
     try {
@@ -79,6 +95,8 @@ export default function AuthPage() {
 
       const res = await loginRequest(payload);
       console.log("Login success:", res.data);
+      dispatch(setAuthUser(res.data.data));
+      // redirect
       navigate("/");
     } catch (err) {
       console.error("Login error:", err.response?.data || err);
@@ -87,6 +105,7 @@ export default function AuthPage() {
     }
   };
 
+  /* ------------------------ SIGN UP ------------------------ */
   const handleSignUp = async (e) => {
     e.preventDefault();
     try {
@@ -237,7 +256,7 @@ export default function AuthPage() {
                   </div>
                 </div>
 
-                {/* GOOGLE BUTTON — ONLY ONE */}
+                {/* GOOGLE BUTTON */}
                 <div id="googleBtn" className="w-full" />
               </form>
             )}

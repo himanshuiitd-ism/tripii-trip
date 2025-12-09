@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 
 import asyncHandler from "../../utils/asyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
-import { ApiResponse } from "../../utils/ApiResponse.js";
 
 import cloudinary from "../../utils/cloudinary.js";
 import sharp from "sharp";
@@ -25,6 +24,7 @@ import { emitToUser } from "../../socket/server.js";
 // NOTIFICATIONS (same folder)
 import { sendNotification } from "./notification.controller.js";
 import { getCommentReward } from "../../points/diminishingCommentReward.js";
+import { ApiResponse } from "../../utils/ApiResponse.js";
 
 /**
  * Utility: normalize multer files structure
@@ -90,12 +90,12 @@ export const createNormalPost = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { caption } = req.body;
 
-  // Allow empty text only if at least one media exists
-  if (!caption?.trim() && !req.files) {
+  const uploadedFiles = normalizeFiles(req);
+
+  if (!caption?.trim() && uploadedFiles.length === 0) {
     throw new ApiError(400, "Write something or add a media file.");
   }
 
-  const uploadedFiles = normalizeFiles(req);
   let media = [];
 
   // Upload media only if files exist
@@ -119,9 +119,12 @@ export const createNormalPost = asyncHandler(async (req, res) => {
     actorId: userId,
   });
 
+  const updatedUser = await User.findById(userId).select("-password");
+
+  const newPost = await Post.findById(post._id).populate("author");
   return res
-    .status(201)
-    .json(new ApiResponse(201, { post, points }, "Normal post created"));
+    .status(200)
+    .json(new ApiResponse(200, { post: newPost, updatedUser }, "..."));
 });
 
 export const createTripPost = asyncHandler(async (req, res) => {
@@ -215,7 +218,7 @@ export const createTripPost = asyncHandler(async (req, res) => {
 });
 
 export const toggleLike = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
+  const userId = req.user._id; // liker
   const { postId } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(postId))
@@ -226,47 +229,84 @@ export const toggleLike = asyncHandler(async (req, res) => {
 
   const hasLiked = post.likes.some((id) => id.toString() === userId.toString());
 
+  // -------------------------------
+  // UNLIKE CASE
+  // -------------------------------
   if (hasLiked) {
-    // unlike
-    await Post.findByIdAndUpdate(postId, { $pull: { likes: userId } });
-
-    // rollback like XP for post author
-    await rollbackPointsForModel(
-      post.author._id,
-      "Post",
+    const updatedPost = await Post.findByIdAndUpdate(
       postId,
-      "post_like_received"
+      { $pull: { likes: userId } },
+      { new: true }
     );
 
-    return res
-      .status(200)
-      .json(new ApiResponse(200, { liked: false }, "Post unliked"));
+    // rollback EXACT XP log caused by THIS liker
+    await rollbackPointsForModel(
+      "Post",
+      postId,
+      userId, // actorId
+      "post_like_received" // activity
+    );
+
+    const updatedUser = await User.findById(userId).select("-password");
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          liked: false,
+          likes: updatedPost.likes,
+          updatedUser,
+        },
+        "Post unliked"
+      )
+    );
   }
 
-  // like
-  await Post.findByIdAndUpdate(postId, { $addToSet: { likes: userId } });
+  // -------------------------------
+  // LIKE CASE
+  // -------------------------------
+  const updatedPost = await Post.findByIdAndUpdate(
+    postId,
+    { $addToSet: { likes: userId } },
+    { new: true }
+  );
 
-  if (post.author._id.toString() !== userId.toString()) {
-    await awardPoints(post.author._id, "post_like_received", {
-      model: "Post",
-      modelId: postId,
-      actorId: userId,
-    });
+  try {
+    // Award XP only if liker != post author
+    if (post.author._id.toString() !== userId.toString()) {
+      await awardPoints(post.author._id, "post_like_received", {
+        model: "Post",
+        modelId: postId,
+        actorId: userId,
+      });
 
-    const notif = await sendNotification({
-      recipient: post.author._id,
-      sender: userId,
-      type: "like",
-      post: postId,
-      message: `${req.user.username} liked your post`,
-    });
+      const notif = await sendNotification({
+        recipient: post.author._id,
+        sender: userId,
+        type: "like", // ensure this matches your Notification enum
+        post: postId,
+        message: `${req.user.username} liked your post`,
+      });
 
-    emitToUser(post.author._id, "notification", notif);
+      emitToUser(post.author._id, "notification", notif);
+    }
+  } catch (err) {
+    console.error("🔥 ERROR IN LIKE POINTS/NOTIFICATION:", err);
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, { liked: true }, "Post liked"));
+  const updatedUser = await User.findById(userId).select("-password");
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        liked: true,
+        likes: updatedPost.likes,
+        userId,
+        updatedUser,
+      },
+      "Post liked"
+    )
+  );
 });
 
 export const addComment = asyncHandler(async (req, res) => {
@@ -335,14 +375,19 @@ export const deletePost = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { postId } = req.params;
 
-  if (!postId || !mongoose.Types.ObjectId.isValid(postId)) {
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
     throw new ApiError(400, "Invalid post ID");
   }
 
+  // ------------------------------
+  // 1. Verify post ownership
+  // ------------------------------
   const post = await Post.findOne({ _id: postId, author: userId });
   if (!post) throw new ApiError(404, "Post not found or unauthorized");
 
-  // Delete media from Cloudinary
+  // ------------------------------
+  // 2. Delete media from Cloudinary
+  // ------------------------------
   for (const m of post.media || []) {
     try {
       await cloudinary.uploader.destroy(m.publicId, {
@@ -353,40 +398,41 @@ export const deletePost = asyncHandler(async (req, res) => {
     }
   }
 
-  // Trip cover inside tripMeta
+  // Trip cover photo (if present)
   if (post.tripMeta?.coverPhoto?.publicId) {
     try {
       await cloudinary.uploader.destroy(post.tripMeta.coverPhoto.publicId, {
-        resource_type:
-          post.tripMeta.coverPhoto.type === "video" ? "video" : "image",
+        resource_type: "image",
       });
     } catch (err) {
       console.error("Cover destroy error:", err);
     }
   }
 
-  // Remove comments
   await Comment.deleteMany({ post: postId });
 
-  // Remove post references from users
-  await User.updateMany(
-    { $or: [{ posts: postId }, { tripPosts: postId }] },
-    { $pull: { posts: postId, tripPosts: postId } }
-  );
+  await User.findByIdAndUpdate(userId, { $pull: { posts: postId } });
 
-  // Rollback any points linked to this post model
   await rollbackPointsForModel("Post", postId);
 
-  // Delete Post
   await post.deleteOne();
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "Post deleted successfully"));
+  const updatedUser = await User.findById(userId).select("-password");
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        updatedUser,
+      },
+      "Post deleted successfully"
+    )
+  );
 });
 
 export const getFeedPosts = asyncHandler(async (req, res) => {
   const userId = req.user._id;
+  console.log("👤 User requesting feed:", userId);
+
   const { page = 1, limit = 10 } = req.query;
   const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
 
@@ -394,11 +440,14 @@ export const getFeedPosts = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit))
-    .populate("author", "username profilePicture")
+    .populate("author", "username profilePicture.url")
     .populate({
       path: "comments",
       populate: { path: "author", select: "username profilePicture" },
     });
+
+  console.log("📦 Found posts:", posts.length);
+  console.log("📄 First post:", posts[0]);
 
   const total = await Post.countDocuments();
 

@@ -1,42 +1,72 @@
-export default function LeftSidebar() {
+import { useSelector } from "react-redux";
+import { useState } from "react";
+
+const SidebarSection = ({ title, items }) => {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = items.length > 3;
+  const visible = expanded ? items : items.slice(0, 3);
+
   return (
-    <aside className="hidden lg:block w-72 shrink-0">
-      <div className="sticky top-28 flex flex-col gap-4">
-        <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-3 border border-border-light">
-          <h3 className="text-xs font-bold text-text-muted-light">
-            Rooms I am part of
-          </h3>
-          <ul className="mt-2 space-y-1">
-            <li className="p-2 rounded-lg hover:bg-primary/10">
-              #general-chat
-            </li>
-            <li className="p-2 rounded-lg hover:bg-primary/10">
-              #thailand-plans
-            </li>
-            <li className="p-2 rounded-lg hover:bg-primary/10">
-              #vietnam-loop
-            </li>
+    <div className="ls-card">
+      <button className="ls-card-header">
+        <h3 className="ls-card-title">{title}</h3>
+        <span className="material-symbols-outlined ls-expand-icon">
+          expand_more
+        </span>
+      </button>
+
+      <div className="ls-card-body">
+        {items.length === 0 && <p className="ls-empty">Currently empty</p>}
+
+        {items.length > 0 && (
+          <ul className="ls-list">
+            {visible.map((item, i) => (
+              <li key={i} className="ls-item">
+                {item.name || item.title || item}
+              </li>
+            ))}
           </ul>
-        </div>
+        )}
 
-        <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-3 border border-border-light">
-          <h3 className="text-xs font-bold text-text-muted-light">My trips</h3>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md bg-gray-200" />
-              <div>
-                <div className="text-sm font-bold">Bali & Islands</div>
-                <div className="text-xs text-text-muted-light">12 members</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {hasMore && !expanded && (
+          <button className="ls-more" onClick={() => setExpanded(true)}>
+            Show more
+          </button>
+        )}
 
-        {/* orange placeholder for future feature */}
-        <div className="bg-orange-100 border border-orange-300 text-orange-800 p-4 rounded-lg">
-          Placeholder (future widget)
-        </div>
+        {hasMore && expanded && (
+          <button className="ls-more" onClick={() => setExpanded(false)}>
+            Show less
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const LeftSidebar = () => {
+  const { user } = useSelector((store) => store.auth);
+
+  return (
+    <aside className="leftsidebar">
+      <div className="ls-inner">
+        <SidebarSection title="My Rooms" items={user.rooms || []} />
+
+        <SidebarSection title="My Trips" items={user.trips || []} />
+
+        <SidebarSection
+          title="Suggested Trips"
+          items={user.communities || []}
+        />
+
+        <SidebarSection title="My Communities" items={user.communities || []} />
+
+        <SidebarSection title="Suggested Rooms" items={[]} />
+
+        <SidebarSection title="Suggested Communities" items={[]} />
       </div>
     </aside>
   );
-}
+};
+
+export default LeftSidebar;

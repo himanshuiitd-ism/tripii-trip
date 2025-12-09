@@ -1,27 +1,64 @@
 // src/main.jsx
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Provider } from "react-redux";
+import { Provider, useSelector } from "react-redux";
+import { store, persistor } from "./redux/store";
 import { PersistGate } from "redux-persist/integration/react";
-import AppLayout from "@/components/layout/AppLayout";
-import HomePage from "@/pages/HomePage";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
 import AuthPage from "@/pages/auth/AuthPage";
-import { store, persistor } from "@/redux/store";
 
 import "./index.css";
+import AppLayout from "./shared/AppLayout";
+import HomePage from "./pages/auth/HomePage";
+
+function RequireAuth({ children }) {
+  const user = useSelector((s) => s.auth.user);
+  return user ? children : <Navigate to="/auth" replace />;
+}
+
+function NoAuth({ children }) {
+  const user = useSelector((s) => s.auth.user);
+  return user ? <Navigate to="/" replace /> : children;
+}
+
+function AppRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* PUBLIC (AUTH ONLY) */}
+        <Route
+          path="/auth"
+          element={
+            <NoAuth>
+              <AuthPage />
+            </NoAuth>
+          }
+        />
+
+        {/* PROTECTED ROUTES WITH GLOBAL LAYOUT */}
+        <Route
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
+          {/* Home Page */}
+          <Route path="/" element={<HomePage />} />
+        </Route>
+
+        {/* CATCH ALL */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
 createRoot(document.getElementById("root")).render(
   <Provider store={store}>
     <PersistGate loading={null} persistor={persistor}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/auth" element={<AuthPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AppRouter />
     </PersistGate>
   </Provider>
 );

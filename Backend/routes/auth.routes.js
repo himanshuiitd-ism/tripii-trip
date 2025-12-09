@@ -10,6 +10,7 @@ import {
   searchUsersWithPagination,
   getProfile,
   editProfile,
+  getCurrentUser,
 } from "../controllers/user/user.controller.js";
 
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -54,5 +55,7 @@ router.put(
   upload.single("profilePicture"),
   editProfile
 );
+
+router.get("/me", verifyJWT, getCurrentUser);
 
 export default router;

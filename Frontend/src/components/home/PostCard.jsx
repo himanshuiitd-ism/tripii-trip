@@ -1,89 +1,185 @@
-import { useState } from "react";
-import useAuth from "@/hooks/useAuth";
-import { toggleLike, deletePost as apiDelete } from "@/api/post";
+// src/components/home/PostCard.jsx
+import { useState, useCallback } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { toggleLike, deletePost as apiDeletePost } from "@/api/post";
 
-export default function PostCard({ post, onDelete }) {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const isOwner = user && post.author && user._id === post.author._id;
+import { updatePost, removePost } from "@/redux/postSlice";
+import { setUserProfile, updateUserStats } from "@/redux/authslice";
+
+import {
+  Heart,
+  MessageSquare,
+  Bookmark,
+  Share2,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+
+const PostCard = ({ post }) => {
+  const dispatch = useDispatch();
+  const { user, userProfile } = useSelector((s) => s.auth);
+
+  const author = post.author;
+  const profilePic = author?.profilePicture?.url || "/profile.avif";
+
+  // --------------------------
+  // LIKE STATE
+  // --------------------------
+  const isLikedInitially = post.likes.includes(user?._id);
+  const [isLiked, setIsLiked] = useState(isLikedInitially);
+
+  // --------------------------
+  // MEDIA CAROUSEL STATE
+  // --------------------------
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const nextImage = () => {
+    if (currentIndex < post.media.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const prevImage = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  // --------------------------
+  // LIKE HANDLER
+  // --------------------------
+  const handleLike = useCallback(async () => {
+    if (!user) return console.error("Login required");
+
+    const current = isLiked;
+    setIsLiked(!isLiked); // optimistic UI
+
+    try {
+      const res = await toggleLike(post._id);
+      const data = res.data.data;
+
+      // Update Redux post.likes ONLY
+      dispatch(updatePost({ ...post, likes: data.likes }));
+
+      // Update user XP
+      if (data.updatedUser) {
+        dispatch(setUserProfile(data.updatedUser));
+      }
+    } catch (err) {
+      console.error(err);
+      setIsLiked(current); // revert on failure
+    }
+  }, [user, isLiked, dispatch, post]);
+
+  // --------------------------
+  // DELETE HANDLER
+  // --------------------------
+  const [isDeleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Delete this post?")) return;
+    if (!user) return;
+
+    setDeleting(true);
+
     try {
-      setLoading(true);
-      await apiDelete(post._id);
-      onDelete && onDelete(post._id);
+      const res = await apiDeletePost(post._id);
+
+      if (res.data.success) {
+        dispatch(removePost(post._id));
+
+        if (res.data.data.updatedUser) {
+          dispatch(setUserProfile(res.data.data.updatedUser));
+        }
+      }
     } catch (err) {
       console.error(err);
-      alert("Delete failed");
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   };
 
-  const handleLike = async () => {
-    try {
-      await toggleLike(post._id);
-      // Simple UX: reload page parent will fetch again; but caller may implement optimistic update
-      // For now, reload window or better: emit event. We'll keep it simple.
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
+  // --------------------------
+  // JSX RENDER
+  // --------------------------
   return (
-    <article className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light p-5 relative">
-      {isOwner && (
-        <button
-          onClick={handleDelete}
-          disabled={loading}
-          className="absolute top-3 right-3 text-red-500 hover:text-red-700"
-        >
-          ✕
-        </button>
-      )}
+    <div className="postcard">
+      {/* -------- HEADER -------- */}
+      <div className="postcard-header">
+        <img src={profilePic} className="postcard-avatar" />
 
-      <div className="flex items-start gap-3">
-        <div className="w-12 h-12 rounded-full bg-gray-200" />
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-bold">
-                {post.author?.username || "Unknown"}
-              </div>
-              <div className="text-xs text-text-muted-light">
-                {new Date(post.createdAt).toLocaleString()}
-              </div>
-            </div>
-          </div>
+        <div className="postcard-header-info">
+          <p className="postcard-username">{author.username}</p>
+          <p className="postcard-time">
+            {new Date(post.createdAt).toLocaleString()}
+          </p>
+        </div>
 
-          {post.caption && <p className="mt-3">{post.caption}</p>}
+        {author._id === user?._id && (
+          <button className="postcard-delete-btn" onClick={handleDelete}>
+            {isDeleting ? "Deleting..." : <Trash2 size={18} />}
+          </button>
+        )}
+      </div>
 
-          {post.media?.length > 0 && (
-            <div className="mt-3">
-              <div
-                className="bg-cover bg-center rounded-lg aspect-video"
-                style={{ backgroundImage: `url(${post.media[0].url})` }}
-              />
-            </div>
+      {/* -------- CAPTION -------- */}
+      {post.caption && <p className="postcard-caption">{post.caption}</p>}
+
+      {/* -------- MEDIA -------- */}
+      {post.media?.length > 0 && (
+        <div className="postcard-media-wrapper">
+          <img src={post.media[currentIndex].url} className="postcard-media" />
+
+          {currentIndex > 0 && (
+            <button className="carousel-arrow left" onClick={prevImage}>
+              <ChevronLeft size={32} />
+            </button>
           )}
 
-          <div className="flex items-center gap-4 mt-4 text-sm text-text-muted-light">
-            <button onClick={handleLike} className="flex items-center gap-1">
-              <span className="material-symbols-outlined">thumb_up</span>
-              <span>{post.likes?.length || 0}</span>
+          {currentIndex < post.media.length - 1 && (
+            <button className="carousel-arrow right" onClick={nextImage}>
+              <ChevronRight size={32} />
             </button>
+          )}
 
-            <button className="flex items-center gap-1">
-              <span className="material-symbols-outlined">chat_bubble</span>
-              <span>{post.comments?.length || 0}</span>
-            </button>
-
-            <div className="ml-auto text-xs">Share</div>
-          </div>
+          {post.media.length > 1 && (
+            <div className="carousel-thumbnails">
+              {post.media.map((m, i) => (
+                <img
+                  key={i}
+                  src={m.url}
+                  className={`thumb ${i === currentIndex ? "active" : ""}`}
+                  onClick={() => setCurrentIndex(i)}
+                />
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {/* -------- ACTIONS -------- */}
+      <div className="postcard-actions">
+        <button className="postcard-action-btn" onClick={handleLike}>
+          <Heart size={18} className={isLiked ? "postcard-liked" : ""} />
+          <span>{post.likes?.length || 0}</span>
+        </button>
+
+        <button className="postcard-action-btn">
+          <MessageSquare size={18} />
+          <span>{post.comments?.length || 0}</span>
+        </button>
+
+        <button className="postcard-action-btn">
+          <Bookmark size={18} />
+        </button>
+
+        <button className="postcard-action-btn postcard-share">
+          <Share2 size={18} />
+          <span>Share</span>
+        </button>
       </div>
-    </article>
+    </div>
   );
-}
+};
+
+export default PostCard;

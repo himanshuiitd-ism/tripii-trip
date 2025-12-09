@@ -1,5 +1,7 @@
 import express from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/multer.middleware.js";
+
 import {
   addComment,
   createNormalPost,
@@ -10,16 +12,31 @@ import {
   toggleBookmark,
   toggleLike,
 } from "../controllers/user/post.controller.js";
+
 const router = express.Router();
+
 router.use(verifyJWT);
 
-router.route("/createPost").post(createNormalPost);
-router.route("/createTripPost").post(createTripPost);
-router.route("/like/:postId").post(toggleLike);
-router.route("/comment/:postId").post(addComment);
-router.route("/deletePost/:postId").delete(deletePost);
-router.route("/getPosts").get(getFeedPosts);
-router.route("/getPost/:postId").get(getPostById);
-router.route("/bookMark/:postId").post(toggleBookmark);
+router.post(
+  "/createPost",
+  upload.array("media"), // REQUIRED
+  createNormalPost
+);
+
+router.post(
+  "/createTripPost",
+  upload.fields([
+    { name: "cover", maxCount: 1 },
+    { name: "media", maxCount: 20 },
+  ]),
+  createTripPost
+);
+
+router.post("/like/:postId", toggleLike);
+router.post("/comment/:postId", addComment);
+router.delete("/deletePost/:postId", deletePost);
+router.get("/getPosts", getFeedPosts);
+router.get("/getPost/:postId", getPostById);
+router.post("/bookMark/:postId", toggleBookmark);
 
 export default router;

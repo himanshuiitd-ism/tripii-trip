@@ -1,11 +1,27 @@
-// src/hooks/useAuth.js
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { useCallback } from "react";
+import { logoutRequest } from "@/api/auth";
+import { logoutUser } from "@/redux/authslice";
 
-export default function useAuth() {
-  const auth = useSelector((s) => s.auth);
+function useAuth() {
+  const dispatch = useDispatch();
+
+  const user = useSelector((state) => state.auth.user);
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutRequest(); // backend logout
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+    dispatch(logoutUser());
+  }, [dispatch]);
+
   return {
-    user: auth?.user || null,
-    accessToken: auth?.accessToken || null,
-    isLoggedIn: !!auth?.user,
+    user,
+    isAuthenticated: !!user,
+    logout,
   };
 }
+
+export default useAuth; // ✅ FIX: DEFAULT EXPORT

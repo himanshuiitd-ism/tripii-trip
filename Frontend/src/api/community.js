@@ -1,26 +1,45 @@
-// src/api/community.js
-import axios from "@/api/axios";
+import api from "@/api/axios";
 
 export const searchCommunities = (params = {}) =>
-  axios.get("/api/community/searchCommunities", { params });
+  api.get("/api/community/searchCommunities", {
+    params,
+    withCredentials: true,
+  });
 
 export const getMyCommunities = () =>
-  axios.get("/api/community/getMyCommunities");
+  api.get("/api/community/getMyCommunities", { withCredentials: true });
 
 export const suggestedCommunities = () =>
-  axios.get("/api/community/SuggestedCommunities");
+  api.get("/api/community/SuggestedCommunities", { withCredentials: true });
 
 export const joinPublicCommunity = (communityId, displayName) =>
-  axios.post(`/api/community/joinCommunity/${communityId}`, { displayName });
+  api.post(
+    `/api/community/joinCommunity/${communityId}`,
+    { displayName },
+    { withCredentials: true }
+  );
 
 export const addMembers = (communityId, members = []) =>
-  axios.post(`/api/community/addMember/${communityId}`, { members });
+  api.post(
+    `/api/community/addMember/${communityId}`,
+    { members },
+    { withCredentials: true }
+  );
 
 export const leaveCommunity = (communityId) =>
-  axios.post(`/api/community/leaveCommunity/${communityId}`);
+  api.post(
+    `/api/community/leaveCommunity/${communityId}`,
+    {},
+    { withCredentials: true }
+  );
 
 export const getCommunityMembers = (communityId, params = {}) =>
-  axios.get(`/api/community/getCommunityMembers/${communityId}`, { params });
+  api.get(`/api/community/getCommunityMembers/${communityId}`, {
+    params,
+    withCredentials: true,
+  });
 
 export const getCommunityProfile = (communityId) =>
-  axios.get(`/api/community/getCommunityProfile/${communityId}`);
+  api.get(`/api/community/getCommunityProfile/${communityId}`, {
+    withCredentials: true,
+  });

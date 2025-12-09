@@ -99,17 +99,25 @@ export const login = asyncHandler(async (req, res) => {
     "-password -refreshToken"
   );
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
+  return res
+    .cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: false, // true in production
+      sameSite: "lax",
+    })
+    .cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+    })
+    .status(200)
+    .json(
+      new ApiResponse(200, {
         user: profile,
         accessToken,
         refreshToken,
-      },
-      "Login successful"
-    )
-  );
+      })
+    );
 });
 
 export const logout = asyncHandler(async (req, res) => {
@@ -198,9 +206,11 @@ export const followOrUnfollow = asyncHandler(async (req, res) => {
       User.updateOne({ _id: targetId }, { $pull: { followers: followerId } }),
     ]);
 
+    const updatedUser = await User.findById(req.user._id);
+
     return res
       .status(200)
-      .json(new ApiResponse(200, {}, "Unfollowed successfully"));
+      .json(new ApiResponse(200, { updatedUser }, "Unfollowed successfully"));
   }
 
   /* ----------------------------------------------------------
@@ -228,9 +238,11 @@ export const followOrUnfollow = asyncHandler(async (req, res) => {
   ----------------------------------------------------------- */
   emitToUser(targetId, "notification", notification);
 
+  const updatedUser = await User.findById(req.user._id);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Followed successfully"));
+    .json(new ApiResponse(200, { updatedUser }, "Followed successfully"));
 });
 
 export const searchUsersWithPagination = asyncHandler(async (req, res) => {
@@ -406,4 +418,12 @@ export const editProfile = asyncHandler(async (req, res) => {
       error.message || "Profile update failed"
     );
   }
+});
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select(
+    "-password -refreshToken"
+  );
+
+  res.status(200).json(new ApiResponse(200, user, "User fetched"));
 });
