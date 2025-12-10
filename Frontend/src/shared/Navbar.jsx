@@ -2,10 +2,11 @@
 import { useSelector } from "react-redux";
 import profileimage from "../../public/profile.avif";
 import { Bell, MessageSquare } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Navbar = () => {
   const { user } = useSelector((store) => store.auth);
-
+  const navigate = useNavigate();
   console.log("user:", user);
 
   return (
@@ -17,8 +18,8 @@ const Navbar = () => {
 
       {/* Middle Navigation */}
       <div className="navbar-middle">
-        <button>Home</button>
-        <button>Communities</button>
+        <button onClick={() => navigate("/")}>Home</button>
+        <button onClick={() => navigate("/community")}>Communities</button>
         <button>Trips</button>
         <button>Places</button>
         <button>Marketplace</button>
