@@ -42,9 +42,4 @@ export const emitToCommunity = (communityId, event, data) => {
   io.to(communityId).emit(event, data);
 };
 
-export const emitToRoom = (roomId, event, data) => {
-  if (!io) return;
-  io.to(roomId).emit(event, data);
-};
-
 export const isUserOnline = (id) => !!userSocketMap[id];

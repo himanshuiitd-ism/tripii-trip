@@ -2,8 +2,7 @@
 import asyncHandler from "../../utils/asyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
-import { Activity } from "../../models/community/activity.model.js";
-import { CommunityMembership } from "../../models/community/communityMembership.model.js";
+import { Activity, CommunityMembership } from "../../models/community.model.js";
 
 /**
  * GET COMMUNITY ACTIVITIES

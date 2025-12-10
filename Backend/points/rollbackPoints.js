@@ -4,64 +4,53 @@ import { User } from "../models/user/user.model.js";
 import { recalcLevel } from "./levelEngine.js";
 
 /**
- * Universal rollback function.
+ * Fully rollback all XP & Trust earned from a specific model instance.
+ * Example: deleting a post should remove ALL XP user gained from it.
  *
- * Supports:
- * 1) rollbackPointsForModel("Post", postId)
- * 2) rollbackPointsForModel("Post", postId, actorId, "post_like_received")
+ * @param {String} model - "Post" | "Comment" | "Reel" | "Trip" etc.
+ * @param {String} modelId - ObjectId of the deleted model
  */
-export async function rollbackPointsForModel(
-  model,
-  modelId,
-  actorId = null,
-  activity = null
-) {
-  let query = { model, modelId };
+export async function rollbackPointsForModel(model, modelId) {
+  // Fetch all XP logs connected to this model
+  const logs = await PointsLog.find({ model, modelId });
 
-  // Unlike case → rollback only logs related to *this* actor
-  if (actorId && activity) {
-    query.actorId = actorId;
-    query.activity = activity;
-  }
+  if (!logs || logs.length === 0) return; // nothing to rollback
 
-  const logs = await PointsLog.find(query);
-  if (!logs || logs.length === 0) {
-    console.warn("⚠ No logs found for rollback:", query);
-    return;
-  }
-
-  // Group XP rollback by userId (the user who RECEIVED the XP)
+  // Group XP & Trust to rollback by user
   const grouped = {};
 
   for (const log of logs) {
-    const receiverId = log.userId.toString(); // post author
+    const uid = log.userId.toString();
 
-    if (!grouped[receiverId]) grouped[receiverId] = { xp: 0, trust: 0 };
+    if (!grouped[uid]) {
+      grouped[uid] = { xp: 0, trust: 0 };
+    }
 
-    grouped[receiverId].xp += log.xp;
-    grouped[receiverId].trust += log.trust;
+    grouped[uid].xp += log.xp;
+    grouped[uid].trust += log.trust;
   }
 
-  // Apply rollback
-  for (const uid of Object.keys(grouped)) {
-    const user = await User.findById(uid);
+  // Apply rollback to each affected user
+  for (const userId of Object.keys(grouped)) {
+    const user = await User.findById(userId);
     if (!user) continue;
 
-    user.xpPoints = Math.max(0, user.xpPoints - grouped[uid].xp);
-    user.trustScore = Math.max(-20, user.trustScore - grouped[uid].trust);
+    const { xp, trust } = grouped[userId];
 
-    // recalc level
+    // Remove XP & trust but enforce minimums
+    user.xpPoints = Math.max(0, user.xpPoints - xp);
+    user.trustScore = Math.max(-20, user.trustScore - trust);
+
+    // Recalculate level after rollback
     const lvl = recalcLevel(user.xpPoints);
-    Object.assign(user, {
-      level: lvl.level,
-      subLevel: lvl.subLevel,
-      levelProgress: lvl.levelProgress,
-      nextLevelXP: lvl.nextLevelXP,
-    });
+    user.level = lvl.level;
+    user.subLevel = lvl.subLevel;
+    user.levelProgress = lvl.levelProgress;
+    user.nextLevelXP = lvl.nextLevelXP;
 
     await user.save();
   }
 
-  // Delete ONLY the relevant logs (not all logs blindly)
-  await PointsLog.deleteMany(query);
+  // Delete all logs related to this model to prevent future conflicts
+  await PointsLog.deleteMany({ model, modelId });
 }
