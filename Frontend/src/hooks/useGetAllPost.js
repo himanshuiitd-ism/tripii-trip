@@ -6,7 +6,7 @@ import { getFeed } from "@/api/post";
 import { getMe } from "@/api/users";
 import { setUserProfile } from "@/redux/authslice";
 
-const useGetAllPost = () => {
+const useGetAllPost = (shouldfetch) => {
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth.user);
   const [loading, setLoading] = useState(true);

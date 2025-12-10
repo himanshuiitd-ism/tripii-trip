@@ -70,7 +70,7 @@ const RightSideBar = () => {
     (u) => u._id !== userProfile._id
   );
 
-  console.log("users:", filteredSuggested);
+  console.log("users:", userProfile);
   return (
     <div className="rightsidebar">
       <div className="rightsidebar-inner">

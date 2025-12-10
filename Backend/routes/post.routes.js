@@ -6,10 +6,13 @@ import {
   addComment,
   createNormalPost,
   createTripPost,
+  deleteComment,
   deletePost,
+  getCommentsByPost,
   getFeedPosts,
   getPostById,
   toggleBookmark,
+  toggleCommentLike,
   toggleLike,
 } from "../controllers/user/post.controller.js";
 
@@ -34,9 +37,12 @@ router.post(
 
 router.post("/like/:postId", toggleLike);
 router.post("/comment/:postId", addComment);
+router.get("/comment/:postId", getCommentsByPost);
 router.delete("/deletePost/:postId", deletePost);
 router.get("/getPosts", getFeedPosts);
 router.get("/getPost/:postId", getPostById);
 router.post("/bookMark/:postId", toggleBookmark);
+router.post("/comment/like/:commentId", toggleCommentLike);
+router.delete("/comment/delete/:commentId", deleteComment);
 
 export default router;

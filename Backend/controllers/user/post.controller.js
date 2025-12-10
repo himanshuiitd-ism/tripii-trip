@@ -321,6 +321,7 @@ export const addComment = asyncHandler(async (req, res) => {
   const post = await Post.findById(postId).populate("author");
   if (!post) throw new ApiError(404, "Post not found");
 
+  // ⭐ Create Comment FIRST (safe)
   const comment = await Comment.create({
     text: text.trim(),
     post: postId,
@@ -328,39 +329,37 @@ export const addComment = asyncHandler(async (req, res) => {
     parentComment: parentCommentId || null,
   });
 
-  // Add to post
   await post.updateOne({ $push: { comments: comment._id } });
 
-  /* -------------------------
-     XP SYSTEM FOR COMMENTS
-     ------------------------- */
+  // ⭐ WRAP XP + NOTIFICATION SO IT NEVER BREAKS THE RESPONSE
+  try {
+    // Comment reward to post owner
+    const xpToOwner = await getCommentReward(userId, postId);
 
-  // 1. Commenter earns NO XP
-  // good — do nothing.
+    if (xpToOwner > 0) {
+      await awardPoints(post.author._id, "post_comment_received", {
+        forceXP: xpToOwner,
+        model: "Post",
+        modelId: postId,
+        actorId: userId,
+      });
+    }
 
-  // 2. Post owner earns diminishing XP
-  const xpToOwner = await getCommentReward(userId, postId);
+    // Send notification
+    if (post.author._id.toString() !== userId.toString()) {
+      const notif = await sendNotification({
+        sender: userId,
+        recipient: post.author._id,
+        type: "comment",
+        post: postId,
+        message: `${req.user.username} commented on your post`,
+      });
 
-  if (xpToOwner > 0) {
-    await awardPoints(post.author._id, "comment_received", {
-      forceXP: xpToOwner,
-      model: "Post",
-      modelId: postId,
-      actorId: userId,
-    });
-  }
-
-  // Notify author (if not same person)
-  if (post.author._id.toString() !== userId.toString()) {
-    const notif = await sendNotification({
-      sender: userId,
-      recipient: post.author._id,
-      type: "comment",
-      post: postId,
-      message: `${req.user.username} commented on your post`,
-    });
-
-    emitToUser(post.author._id, "notification", notif);
+      emitToUser(post.author._id, "notification", notif);
+    }
+  } catch (err) {
+    console.error("⚠ Notification or XP error:", err.message);
+    // DO NOT throw — user comment should still succeed
   }
 
   const populated = await Comment.findById(comment._id).populate(
@@ -369,6 +368,66 @@ export const addComment = asyncHandler(async (req, res) => {
   );
 
   return res.status(201).json(new ApiResponse(201, populated, "Comment added"));
+});
+
+export const getCommentsByPost = asyncHandler(async (req, res) => {
+  const { postId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    throw new ApiError(400, "Invalid post ID");
+  }
+
+  const { page = 1, limit = 20 } = req.query;
+  const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+
+  // 1. Ensure post exists
+  const postExists = await Post.exists({ _id: postId });
+  if (!postExists) throw new ApiError(404, "Post not found");
+
+  // 2. Fetch comments (sorted + populated)
+  const comments = await Comment.find({ post: postId })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit))
+    .populate("author", "username profilePicture")
+    .lean();
+
+  // 3. Count total comments
+  const total = await Comment.countDocuments({ post: postId });
+
+  // 4. OPTIONAL: Group nested replies
+  const grouped = [];
+  const map = {};
+
+  comments.forEach((c) => {
+    c.replies = [];
+    map[c._id] = c;
+  });
+
+  comments.forEach((c) => {
+    if (c.parentComment) {
+      if (map[c.parentComment]) {
+        map[c.parentComment].replies.push(c);
+      }
+    } else {
+      grouped.push(c);
+    }
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        comments: grouped,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalComments: total,
+        },
+      },
+      "Comments fetched"
+    )
+  );
 });
 
 export const deletePost = asyncHandler(async (req, res) => {
@@ -431,9 +490,8 @@ export const deletePost = asyncHandler(async (req, res) => {
 
 export const getFeedPosts = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  console.log("👤 User requesting feed:", userId);
 
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 100 } = req.query;
   const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
 
   const posts = await Post.find()
@@ -445,9 +503,6 @@ export const getFeedPosts = asyncHandler(async (req, res) => {
       path: "comments",
       populate: { path: "author", select: "username profilePicture" },
     });
-
-  console.log("📦 Found posts:", posts.length);
-  console.log("📄 First post:", posts[0]);
 
   const total = await Post.countDocuments();
 
@@ -504,4 +559,103 @@ export const toggleBookmark = asyncHandler(async (req, res) => {
 
   await user.save();
   return res.status(200).json(new ApiResponse(200, { bookmarked: !exists }));
+});
+
+//like for comment
+export const toggleCommentLike = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { commentId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(commentId)) {
+    throw new ApiError(400, "Invalid comment ID");
+  }
+
+  const comment = await Comment.findById(commentId);
+  if (!comment) throw new ApiError(404, "Comment not found");
+
+  const alreadyLiked = comment.likes.includes(userId);
+
+  if (alreadyLiked) {
+    // Unlike
+    comment.likes.pull(userId);
+    comment.likeCount = Math.max(0, comment.likeCount - 1);
+  } else {
+    // Like
+    comment.likes.push(userId);
+    comment.likeCount += 1;
+
+    // Send notification to author (if not same person)
+    if (comment.author.toString() !== userId.toString()) {
+      const notif = await sendNotification({
+        sender: userId,
+        recipient: comment.author,
+        type: "comment_like",
+        comment: comment._id,
+        message: `${req.user.username} liked your comment`,
+      });
+
+      emitToUser(comment.author, "notification", notif);
+    }
+  }
+
+  await comment.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        likes: comment.likes,
+        likeCount: comment.likeCount,
+      },
+      "Comment like toggled"
+    )
+  );
+});
+
+// controllers/user/post.controller.js
+
+export const deleteComment = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { commentId } = req.params;
+
+  // 1. Fetch comment
+  const comment = await Comment.findById(commentId);
+  if (!comment) throw new ApiError(404, "Comment not found");
+
+  // 2. Fetch the parent post
+  const post = await Post.findById(comment.post);
+  if (!post) throw new ApiError(404, "Post not found");
+
+  // 3. Permission check
+  const isCommentOwner = comment.author.toString() === userId.toString();
+  const isPostOwner = post.author.toString() === userId.toString();
+
+  if (!isCommentOwner && !isPostOwner) {
+    throw new ApiError(403, "You cannot delete this comment");
+  }
+
+  // 4. Soft delete main comment
+  comment.isDeleted = true;
+  comment.text = "This comment was deleted.";
+  comment.deletedBy = userId;
+  await comment.save();
+
+  // 5. Soft delete replies (depth = 2)
+  await Comment.updateMany(
+    { parentComment: commentId },
+    {
+      $set: {
+        isDeleted: true,
+        text: "This reply was deleted.",
+        deletedBy: userId,
+      },
+    }
+  );
+
+  // 6. Remove comment from Post.comments array
+  await Post.updateOne({ _id: post._id }, { $pull: { comments: commentId } });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Comment deleted successfully"));
 });

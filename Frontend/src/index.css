@@ -247,10 +247,10 @@ body {
 
 /* Create Post Box */
 .create-post-box {
-  background: rgb(244, 244, 244);
+  background: rgb(250, 250, 250);
   padding: 16px;
   border-radius: 12px;
-  border: 1px solid #cccccc;
+  /* border: 1px solid #cccccc; */
   width: 70%;
   margin-bottom: 30px;
 }
@@ -454,8 +454,8 @@ body {
 /* ---------- POST CARD ---------- */
 .postcard {
   width: 70%;
-  background: #ffffff;
-  border: 1px solid #dce5e4;
+  background: rgb(250, 250, 250);
+  /* border: 1px solid #dce5e4; */
   border-radius: 14px;
   padding: 20px;
   margin-bottom: 24px;
@@ -632,6 +632,60 @@ body {
 .thumb:hover {
   opacity: 1;
 }
+
+.postcard-inline-comment {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.postcard-inline-input {
+  width: 80%;
+  padding: 8px 12px;
+  border: 1px solid #dce5e4;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.postcard-inline-btn {
+  width: 20%;
+  background: #00ffe5;
+  color: rgb(0, 0, 0);
+  border: none;
+  padding: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+.postcard-inline-btn:hover {
+  opacity: 0.9;
+}
+
+/* Thumbnails restored */
+.carousel-thumbnails {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.carousel-thumbnails .thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.carousel-thumbnails .thumb.active {
+  opacity: 1;
+  border: 2px solid #00ffe5;
+}
+
 /* =========================
    RIGHT SIDEBAR CONTAINER
 ========================= */
@@ -666,8 +720,8 @@ body {
 }
 
 .rs-card {
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
+  background: rgb(244, 244, 244);
+  /* border: 1px solid #e5e5e5; */
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 16px;
@@ -835,4 +889,14 @@ body {
   font-size: 11px;
   text-align: center;
   color: #777;
+}
+
+/* commentpage */
+
+.commentpage {
+  margin-left: 20vw;
+  width: 60vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }

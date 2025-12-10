@@ -11,6 +11,8 @@ import AuthPage from "@/pages/auth/AuthPage";
 import "./index.css";
 import AppLayout from "./shared/AppLayout";
 import HomePage from "./pages/auth/HomePage";
+import CommentPage from "./components/home/CommentPage";
+import MiniAppLayout from "./shared/MiniAppLayout";
 
 function RequireAuth({ children }) {
   const user = useSelector((s) => s.auth.user);
@@ -26,7 +28,6 @@ function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PUBLIC (AUTH ONLY) */}
         <Route
           path="/auth"
           element={
@@ -36,7 +37,7 @@ function AppRouter() {
           }
         />
 
-        {/* PROTECTED ROUTES WITH GLOBAL LAYOUT */}
+        {/* Protected Layout */}
         <Route
           element={
             <RequireAuth>
@@ -44,11 +45,13 @@ function AppRouter() {
             </RequireAuth>
           }
         >
-          {/* Home Page */}
-          <Route path="/" element={<HomePage />} />
+          {/* Mini layout with sidebar */}
+          <Route element={<MiniAppLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/post/:id" element={<CommentPage />} />
+          </Route>
         </Route>
 
-        {/* CATCH ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

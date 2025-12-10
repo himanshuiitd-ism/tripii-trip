@@ -1,10 +1,13 @@
-// src/components/home/PostCard.jsx
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { toggleLike, deletePost as apiDeletePost } from "@/api/post";
+import {
+  toggleLike,
+  deletePost as apiDeletePost,
+  addComment,
+} from "@/api/post";
 
-import { updatePost, removePost } from "@/redux/postSlice";
-import { setUserProfile, updateUserStats } from "@/redux/authslice";
+import { updatePost, removePost, setSelectedPost } from "@/redux/postSlice";
+import { setUserProfile } from "@/redux/authslice";
 
 import {
   Heart,
@@ -16,132 +19,130 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
 const PostCard = ({ post }) => {
   const dispatch = useDispatch();
-  const { user, userProfile } = useSelector((s) => s.auth);
+  const navigate = useNavigate();
+  const { user } = useSelector((s) => s.auth);
 
-  const author = post.author;
-  const profilePic = author?.profilePicture?.url || "/profile.avif";
-
-  // --------------------------
-  // LIKE STATE
-  // --------------------------
-  const isLikedInitially = post.likes.includes(user?._id);
-  const [isLiked, setIsLiked] = useState(isLikedInitially);
-
-  // --------------------------
-  // MEDIA CAROUSEL STATE
-  // --------------------------
+  const [isLiked, setIsLiked] = useState(post.likes.includes(user?._id));
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const nextImage = () => {
-    if (currentIndex < post.media.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
-  };
+  const [inlineComment, setInlineComment] = useState("");
 
-  const prevImage = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
+  /* ------------------------------------------
+     LIKE HANDLER
+  -------------------------------------------- */
+  const handleLike = async () => {
+    if (!user) return toast.error("Login required");
 
-  // --------------------------
-  // LIKE HANDLER
-  // --------------------------
-  const handleLike = useCallback(async () => {
-    if (!user) return console.error("Login required");
-
-    const current = isLiked;
-    setIsLiked(!isLiked); // optimistic UI
+    const prev = isLiked;
+    setIsLiked(!isLiked); // optimistic
 
     try {
       const res = await toggleLike(post._id);
-      const data = res.data.data;
+      dispatch(updatePost({ ...post, likes: res.data.data.likes }));
 
-      // Update Redux post.likes ONLY
-      dispatch(updatePost({ ...post, likes: data.likes }));
-
-      // Update user XP
-      if (data.updatedUser) {
-        dispatch(setUserProfile(data.updatedUser));
-      }
+      if (res.data.data.updatedUser)
+        dispatch(setUserProfile(res.data.data.updatedUser));
     } catch (err) {
-      console.error(err);
-      setIsLiked(current); // revert on failure
+      setIsLiked(prev);
     }
-  }, [user, isLiked, dispatch, post]);
+  };
 
-  // --------------------------
-  // DELETE HANDLER
-  // --------------------------
-  const [isDeleting, setDeleting] = useState(false);
+  /* ------------------------------------------
+     INLINE COMMENT SUBMIT
+  -------------------------------------------- */
+  const submitInlineComment = async () => {
+    if (!inlineComment.trim()) return;
 
+    try {
+      const res = await addComment(post._id, inlineComment);
+      const newComment = res.data.data;
+
+      dispatch(
+        updatePost({
+          ...post,
+          comments: [newComment, ...(post.comments || [])],
+        })
+      );
+
+      setInlineComment("");
+    } catch (err) {
+      toast.error("Failed to comment");
+    }
+  };
+
+  /* ------------------------------------------
+     DELETE POST
+  -------------------------------------------- */
   const handleDelete = async () => {
-    if (!user) return;
-
-    setDeleting(true);
-
     try {
       const res = await apiDeletePost(post._id);
 
       if (res.data.success) {
         dispatch(removePost(post._id));
 
-        if (res.data.data.updatedUser) {
+        if (res.data.data.updatedUser)
           dispatch(setUserProfile(res.data.data.updatedUser));
-        }
       }
     } catch (err) {
-      console.error(err);
-    } finally {
-      setDeleting(false);
+      toast.error("Delete failed");
     }
   };
 
-  // --------------------------
-  // JSX RENDER
-  // --------------------------
   return (
     <div className="postcard">
-      {/* -------- HEADER -------- */}
+      {/* HEADER */}
       <div className="postcard-header">
-        <img src={profilePic} className="postcard-avatar" />
+        <img
+          src={post.author?.profilePicture?.url || "/profile.avif"}
+          className="postcard-avatar"
+        />
 
         <div className="postcard-header-info">
-          <p className="postcard-username">{author.username}</p>
+          <p className="postcard-username">{post.author.username}</p>
           <p className="postcard-time">
             {new Date(post.createdAt).toLocaleString()}
           </p>
         </div>
 
-        {author._id === user?._id && (
+        {post.author._id === user?._id && (
           <button className="postcard-delete-btn" onClick={handleDelete}>
-            {isDeleting ? "Deleting..." : <Trash2 size={18} />}
+            <Trash2 size={18} />
           </button>
         )}
       </div>
 
-      {/* -------- CAPTION -------- */}
+      {/* CAPTION */}
       {post.caption && <p className="postcard-caption">{post.caption}</p>}
 
-      {/* -------- MEDIA -------- */}
+      {/* MEDIA CAROUSEL + THUMBNAILS (RESTORED!) */}
       {post.media?.length > 0 && (
         <div className="postcard-media-wrapper">
           <img src={post.media[currentIndex].url} className="postcard-media" />
 
           {currentIndex > 0 && (
-            <button className="carousel-arrow left" onClick={prevImage}>
+            <button
+              className="carousel-arrow left"
+              onClick={() => setCurrentIndex((i) => i - 1)}
+            >
               <ChevronLeft size={32} />
             </button>
           )}
 
           {currentIndex < post.media.length - 1 && (
-            <button className="carousel-arrow right" onClick={nextImage}>
+            <button
+              className="carousel-arrow right"
+              onClick={() => setCurrentIndex((i) => i + 1)}
+            >
               <ChevronRight size={32} />
             </button>
           )}
 
+          {/* ⭐ RESTORED THUMBNAILS */}
           {post.media.length > 1 && (
             <div className="carousel-thumbnails">
               {post.media.map((m, i) => (
@@ -157,14 +158,20 @@ const PostCard = ({ post }) => {
         </div>
       )}
 
-      {/* -------- ACTIONS -------- */}
+      {/* ACTIONS */}
       <div className="postcard-actions">
         <button className="postcard-action-btn" onClick={handleLike}>
           <Heart size={18} className={isLiked ? "postcard-liked" : ""} />
           <span>{post.likes?.length || 0}</span>
         </button>
 
-        <button className="postcard-action-btn">
+        <button
+          className="postcard-action-btn"
+          onClick={() => {
+            dispatch(setSelectedPost(post));
+            navigate(`/post/${post._id}`);
+          }}
+        >
           <MessageSquare size={18} />
           <span>{post.comments?.length || 0}</span>
         </button>
@@ -175,8 +182,26 @@ const PostCard = ({ post }) => {
 
         <button className="postcard-action-btn postcard-share">
           <Share2 size={18} />
-          <span>Share</span>
         </button>
+      </div>
+
+      {/* ⭐ INLINE COMMENT BOX (80% INPUT + 20% BUTTON) */}
+      <div className="postcard-inline-comment">
+        <input
+          type="text"
+          placeholder="Add a comment..."
+          className="postcard-inline-input"
+          value={inlineComment}
+          onChange={(e) => setInlineComment(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submitInlineComment()}
+        />
+
+        {/* Only show when typing */}
+        {inlineComment.trim() && (
+          <button className="postcard-inline-btn" onClick={submitInlineComment}>
+            Post
+          </button>
+        )}
       </div>
     </div>
   );
