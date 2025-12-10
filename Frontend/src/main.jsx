@@ -1,67 +1,17 @@
 // src/main.jsx
 import React from "react";
-import { createRoot } from "react-dom/client";
-import { Provider, useSelector } from "react-redux";
-import { store, persistor } from "./redux/store";
-import { PersistGate } from "redux-persist/integration/react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
-import AuthPage from "@/pages/auth/AuthPage";
-
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
 import "./index.css";
-import AppLayout from "./shared/AppLayout";
-import HomePage from "./pages/auth/HomePage";
-import CommentPage from "./components/home/CommentPage";
-import MiniAppLayout from "./shared/MiniAppLayout";
 
-function RequireAuth({ children }) {
-  const user = useSelector((s) => s.auth.user);
-  return user ? children : <Navigate to="/auth" replace />;
-}
+import { Provider } from "react-redux";
+import { PersistGate } from "redux-persist/integration/react";
+import { persistor, store } from "./redux/store.js";
 
-function NoAuth({ children }) {
-  const user = useSelector((s) => s.auth.user);
-  return user ? <Navigate to="/" replace /> : children;
-}
-
-function AppRouter() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/auth"
-          element={
-            <NoAuth>
-              <AuthPage />
-            </NoAuth>
-          }
-        />
-
-        {/* Protected Layout */}
-        <Route
-          element={
-            <RequireAuth>
-              <AppLayout />
-            </RequireAuth>
-          }
-        >
-          {/* Mini layout with sidebar */}
-          <Route element={<MiniAppLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/post/:id" element={<CommentPage />} />
-          </Route>
-        </Route>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-createRoot(document.getElementById("root")).render(
+ReactDOM.createRoot(document.getElementById("root")).render(
   <Provider store={store}>
     <PersistGate loading={null} persistor={persistor}>
-      <AppRouter />
+      <App />
     </PersistGate>
   </Provider>
 );

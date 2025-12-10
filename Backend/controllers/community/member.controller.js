@@ -1,16 +1,15 @@
 // controllers/community/members.controller.js
-import mongoose from "mongoose";
 import asyncHandler from "../../utils/asyncHandler.js";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
-
+import {
+  Community,
+  CommunityMembership,
+  Activity,
+} from "../../models/community.model.js";
 import { User } from "../../models/user/user.model.js";
-import { Community } from "../../models/community/community.model.js";
-import { CommunityMembership } from "../../models/community/communityMembership.model.js";
-import { Activity } from "../../models/community/activity.model.js";
-
-import { sendNotification } from "../user/notification.controller.js";
-import { emitToUser, emitToCommunity } from "../../socket/server.js";
+import { createNotification } from "../notification.controller.js";
+import { io, receiverSocketId } from "../../socket/socket.js";
 
 /**
  * JOIN PUBLIC COMMUNITY
@@ -20,20 +19,30 @@ export const joinPublicCommunity = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const { displayName } = req.body;
 
-  if (!displayName?.trim()) throw new ApiError(400, "Display name is required");
-
-  const community = await Community.findById(communityId).select("type name");
-  if (!community) throw new ApiError(404, "Community not found");
-
-  if (community.type !== "public_group") {
-    throw new ApiError(403, "This is not a public community");
+  if (!displayName?.trim()) {
+    throw new ApiError(400, "Display name is required");
   }
 
-  const existing = await CommunityMembership.findOne({
+  const community = await Community.findById(communityId);
+  if (!community) {
+    throw new ApiError(404, "Community not found");
+  }
+
+  if (community.type !== "public_group") {
+    throw new ApiError(
+      403,
+      "This is not a public community. You need to be invited by a member."
+    );
+  }
+
+  const existingMembership = await CommunityMembership.findOne({
     community: communityId,
     user: userId,
   });
-  if (existing) throw new ApiError(409, "You are already a member");
+
+  if (existingMembership) {
+    throw new ApiError(409, "You are already a member");
+  }
 
   const membership = await CommunityMembership.create({
     community: communityId,
@@ -42,36 +51,31 @@ export const joinPublicCommunity = asyncHandler(async (req, res) => {
     role: "member",
   });
 
-  // Attach membership to community.members
+  // Update community members
   await Community.findByIdAndUpdate(communityId, {
     $push: { members: membership._id },
   });
 
-  // Add community to user
+  // Update user communities
   await User.findByIdAndUpdate(userId, {
     $addToSet: { communities: communityId },
   });
 
-  // Activity
+  // Create activity
   await Activity.create({
     community: communityId,
     actor: userId,
     type: "member_added",
-    payload: { userId, action: "joined" },
+    payload: {
+      userId,
+      action: "joined",
+    },
   });
 
-  // Emit to community (members listening in)
-  try {
-    const populated = await membership.populate(
-      "user",
-      "username profilePicture"
-    );
-    emitToCommunity(communityId.toString(), "member:joined", {
-      membership: populated,
-    });
-  } catch (e) {
-    // non-fatal
-  }
+  // Emit to community
+  io.to(communityId.toString()).emit("memberJoined", {
+    membership: await membership.populate("user", "username profilePicture"),
+  });
 
   return res
     .status(200)
@@ -80,28 +84,32 @@ export const joinPublicCommunity = asyncHandler(async (req, res) => {
 
 /**
  * ADD MEMBERS (by existing members if allowed, or admin)
+ * For private communities, members can only be added this way
  */
 export const addMembers = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
-  let { members = [] } = req.body; // array of user IDs
+  const { members = [] } = req.body; // array of user IDs
   const adderId = req.user._id;
 
   if (!Array.isArray(members) || members.length === 0) {
     throw new ApiError(400, "Members list is required");
   }
 
-  const community = await Community.findById(communityId).select(
-    "name settings"
-  );
-  if (!community) throw new ApiError(404, "Community not found");
+  const community = await Community.findById(communityId);
+  if (!community) {
+    throw new ApiError(404, "Community not found");
+  }
 
   const adderMembership = await CommunityMembership.findOne({
     community: communityId,
     user: adderId,
   });
-  if (!adderMembership)
-    throw new ApiError(403, "You must be a member to add others");
 
+  if (!adderMembership) {
+    throw new ApiError(403, "You must be a member to add others");
+  }
+
+  // Check permission: either admin OR community.settings.allowMembersToAdd is true
   if (
     !community.settings?.allowMembersToAdd &&
     adderMembership.role !== "admin"
@@ -109,84 +117,79 @@ export const addMembers = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Only admins can add members");
   }
 
-  // sanitize and dedupe input, limit to 200
-  members = Array.from(new Set(members.map((m) => m.toString()))).slice(0, 200);
-
-  // remove existing members and the adder
-  const existing = await CommunityMembership.find({
+  // Filter out existing members
+  const existingMemberships = await CommunityMembership.find({
     community: communityId,
     user: { $in: members },
   }).select("user");
 
-  const existingSet = new Set(existing.map((e) => e.user.toString()));
-  const toAdd = members.filter(
-    (id) => !existingSet.has(id) && id !== adderId.toString()
+  const existingSet = new Set(
+    existingMemberships.map((m) => m.user.toString())
   );
+  const toAdd = members.filter((id) => !existingSet.has(id.toString()));
 
   if (toAdd.length === 0) {
-    throw new ApiError(409, "No new users to add");
+    throw new ApiError(409, "All users are already members");
   }
 
-  // fetch valid user docs
+  // Get valid users
   const users = await User.find({ _id: { $in: toAdd } }).select(
     "username profilePicture"
   );
-  if (!users.length) throw new ApiError(404, "No valid users found to add");
 
-  const memberDocs = users.map((u) => ({
+  if (users.length === 0) {
+    throw new ApiError(404, "No valid users found");
+  }
+
+  const memberDocs = users.map((user) => ({
     community: communityId,
-    user: u._id,
-    displayName: u.username,
+    user: user._id,
+    displayName: user.username,
     role: "member",
   }));
 
   const createdMemberships = await CommunityMembership.insertMany(memberDocs);
 
-  // update community.members
+  // Update community
   await Community.findByIdAndUpdate(communityId, {
     $push: { members: { $each: createdMemberships.map((m) => m._id) } },
   });
 
-  // update users.communities
-  const newUserIds = createdMemberships.map((m) => m.user);
+  // Update users
+  const userIds = createdMemberships.map((m) => m.user);
   await User.updateMany(
-    { _id: { $in: newUserIds } },
+    { _id: { $in: userIds } },
     { $addToSet: { communities: communityId } }
   );
 
-  // create activity
+  // Create activity
   await Activity.create({
     community: communityId,
     actor: adderId,
     type: "member_added",
-    payload: { addedUsers: newUserIds, count: newUserIds.length },
+    payload: {
+      addedUsers: userIds,
+      count: userIds.length,
+    },
   });
 
-  // Send notification + realtime emit per user (do not fail whole request on single notification error)
-  await Promise.allSettled(
-    createdMemberships.map(async (m) => {
+  // Send notifications
+  await Promise.all(
+    createdMemberships.map(async (membership) => {
       try {
-        const notification = await sendNotification({
-          recipient: m.user,
+        const notification = await createNotification({
           sender: adderId,
+          recipient: membership.user,
           type: "community_invite",
           message: `${req.user.username} added you to "${community.name}"`,
-          community: communityId,
-          metadata: { communityId, communityName: community.name },
         });
 
-        // emit directly to user (emitToUser is safe if user offline)
-        try {
-          emitToUser(m.user.toString(), "notification:new", notification);
-        } catch (emitErr) {
-          // ignore
+        const socketId = receiverSocketId(membership.user.toString());
+        if (socketId) {
+          io.to(socketId).emit("new_Notification", notification);
         }
       } catch (err) {
-        console.error(
-          "Failed to send notification for member add:",
-          m.user.toString(),
-          err
-        );
+        console.error("Notification failed:", err);
       }
     })
   );
@@ -206,21 +209,20 @@ export const addMembers = asyncHandler(async (req, res) => {
  * REMOVE MEMBER (admin only)
  */
 export const removeMember = asyncHandler(async (req, res) => {
-  const { communityId } = req.params;
-  const { targetUserId } = req.body;
+  const { communityId, userId: targetUserId } = req.params;
   const adminId = req.user._id;
-
-  if (!targetUserId) throw new ApiError(400, "targetUserId required");
 
   const adminMembership = await CommunityMembership.findOne({
     community: communityId,
     user: adminId,
     role: "admin",
   });
-  if (!adminMembership)
-    throw new ApiError(403, "Only admins can remove members");
 
-  if (adminId.toString() === targetUserId.toString()) {
+  if (!adminMembership) {
+    throw new ApiError(403, "Only admins can remove members");
+  }
+
+  if (adminId.toString() === targetUserId) {
     throw new ApiError(400, "You cannot remove yourself");
   }
 
@@ -229,40 +231,48 @@ export const removeMember = asyncHandler(async (req, res) => {
     user: targetUserId,
   });
 
-  if (!membership) throw new ApiError(404, "Member not found");
+  if (!membership) {
+    throw new ApiError(404, "Member not found");
+  }
 
-  // update community and user
+  // Update community
   await Community.findByIdAndUpdate(communityId, {
     $pull: { members: membership._id },
   });
+
+  // Update user
   await User.findByIdAndUpdate(targetUserId, {
     $pull: { communities: communityId },
   });
 
-  // activity
+  // Create activity
   await Activity.create({
     community: communityId,
     actor: adminId,
     type: "member_removed",
-    payload: { removedUser: targetUserId, action: "removed" },
+    payload: {
+      removedUser: targetUserId,
+      action: "removed",
+    },
   });
 
-  // send notification and emit removed event
+  // Notify removed user
   try {
     const community = await Community.findById(communityId).select("name");
-    const notification = await sendNotification({
-      recipient: targetUserId,
+    const notification = await createNotification({
       sender: adminId,
-      type: "community_removed",
+      recipient: targetUserId,
+      type: "community_invite",
       message: `You were removed from "${community.name}"`,
-      community: communityId,
-      metadata: { communityId },
     });
 
-    emitToUser(targetUserId.toString(), "notification:new", notification);
-    emitToUser(targetUserId.toString(), "community:removed", { communityId });
+    const socketId = receiverSocketId(targetUserId);
+    if (socketId) {
+      io.to(socketId).emit("new_Notification", notification);
+      io.to(socketId).emit("removedFromCommunity", { communityId });
+    }
   } catch (err) {
-    console.error("Failed to notify removed user:", err);
+    console.error("Notification failed:", err);
   }
 
   return res
@@ -281,15 +291,18 @@ export const leaveCommunity = asyncHandler(async (req, res) => {
     community: communityId,
     user: userId,
   });
-  if (!membership)
-    throw new ApiError(404, "You are not a member of this community");
 
-  // If only admin, block leave
+  if (!membership) {
+    throw new ApiError(404, "You are not a member of this community");
+  }
+
+  // Check if user is the only admin
   if (membership.role === "admin") {
     const adminCount = await CommunityMembership.countDocuments({
       community: communityId,
       role: "admin",
     });
+
     if (adminCount === 1) {
       throw new ApiError(
         400,
@@ -299,27 +312,32 @@ export const leaveCommunity = asyncHandler(async (req, res) => {
   }
 
   await CommunityMembership.findByIdAndDelete(membership._id);
+
+  // Update community
   await Community.findByIdAndUpdate(communityId, {
     $pull: { members: membership._id },
   });
-  await User.findByIdAndUpdate(userId, { $pull: { communities: communityId } });
 
+  // Update user
+  await User.findByIdAndUpdate(userId, {
+    $pull: { communities: communityId },
+  });
+
+  // Create activity
   await Activity.create({
     community: communityId,
     actor: userId,
     type: "community_left",
-    payload: { action: "left" },
+    payload: {
+      action: "left",
+    },
   });
 
-  // emit to community that a member left
-  try {
-    emitToCommunity(communityId.toString(), "member:left", {
-      userId,
-      communityId,
-    });
-  } catch (err) {
-    // ignore
-  }
+  // Emit to community
+  io.to(communityId.toString()).emit("memberLeft", {
+    userId,
+    communityId,
+  });
 
   return res
     .status(200)
@@ -330,22 +348,27 @@ export const leaveCommunity = asyncHandler(async (req, res) => {
  * CHANGE MEMBER ROLE (admin only)
  */
 export const changeMemberRole = asyncHandler(async (req, res) => {
-  const { communityId } = req.params;
-  const { role, targetUserId } = req.body; // "admin" | "member"
+  const { communityId, userId: targetUserId } = req.params;
+  const { role } = req.body; // "admin" | "member"
   const adminId = req.user._id;
 
-  if (!["admin", "member"].includes(role))
+  if (!["admin", "member"].includes(role)) {
     throw new ApiError(400, "Invalid role. Must be 'admin' or 'member'");
+  }
 
   const adminMembership = await CommunityMembership.findOne({
     community: communityId,
     user: adminId,
     role: "admin",
   });
-  if (!adminMembership) throw new ApiError(403, "Only admins can change roles");
 
-  if (adminId.toString() === targetUserId)
+  if (!adminMembership) {
+    throw new ApiError(403, "Only admins can change roles");
+  }
+
+  if (adminId.toString() === targetUserId) {
     throw new ApiError(400, "You cannot change your own role");
+  }
 
   const membership = await CommunityMembership.findOneAndUpdate(
     { community: communityId, user: targetUserId },
@@ -353,8 +376,11 @@ export const changeMemberRole = asyncHandler(async (req, res) => {
     { new: true }
   ).populate("user", "username profilePicture");
 
-  if (!membership) throw new ApiError(404, "Member not found");
+  if (!membership) {
+    throw new ApiError(404, "Member not found");
+  }
 
+  // Create activity
   await Activity.create({
     community: communityId,
     actor: adminId,
@@ -366,22 +392,23 @@ export const changeMemberRole = asyncHandler(async (req, res) => {
     },
   });
 
-  // notify the user about role change
+  // Notify user
   try {
     const community = await Community.findById(communityId).select("name");
-    const notification = await sendNotification({
-      recipient: targetUserId,
+    const notification = await createNotification({
       sender: adminId,
-      type: "role_changed",
+      recipient: targetUserId,
+      type: "community_invite",
       message: `Your role in "${community.name}" was changed to ${role}`,
-      community: communityId,
-      metadata: { communityId, newRole: role },
     });
 
-    emitToUser(targetUserId.toString(), "notification:new", notification);
-    emitToUser(targetUserId.toString(), "role:updated", { communityId, role });
+    const socketId = receiverSocketId(targetUserId);
+    if (socketId) {
+      io.to(socketId).emit("new_Notification", notification);
+      io.to(socketId).emit("roleUpdated", { communityId, role });
+    }
   } catch (err) {
-    console.error("Failed to notify role change:", err);
+    console.error("Notification failed:", err);
   }
 
   return res
@@ -401,10 +428,17 @@ export const getCommunityMembers = asyncHandler(async (req, res) => {
     community: communityId,
     user: userId,
   });
-  if (!membership) throw new ApiError(403, "Only members can view member list");
+
+  if (!membership) {
+    throw new ApiError(403, "Only members can view member list");
+  }
 
   const query = { community: communityId };
-  if (role && ["admin", "member"].includes(role)) query.role = role;
+
+  // Filter by role
+  if (role && ["admin", "member"].includes(role)) {
+    query.role = role;
+  }
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -416,14 +450,14 @@ export const getCommunityMembers = asyncHandler(async (req, res) => {
 
   const members = await membersQuery;
 
-  // in-memory search filter on populated fields
-  let filtered = members;
+  // Search filter (post-query, on populated data)
+  let filteredMembers = members;
   if (search?.trim()) {
-    const s = search.trim().toLowerCase();
-    filtered = members.filter(
+    const searchLower = search.trim().toLowerCase();
+    filteredMembers = members.filter(
       (m) =>
-        m.user?.username?.toLowerCase().includes(s) ||
-        (m.displayName && m.displayName.toLowerCase().includes(s))
+        m.user?.username?.toLowerCase().includes(searchLower) ||
+        m.displayName?.toLowerCase().includes(searchLower)
     );
   }
 
@@ -433,7 +467,7 @@ export const getCommunityMembers = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       {
-        members: filtered,
+        members: filteredMembers,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -448,13 +482,16 @@ export const getCommunityMembers = asyncHandler(async (req, res) => {
 
 /**
  * UPDATE DISPLAY NAME
+ * Allows user to change their display name in a community
  */
 export const updateDisplayName = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const { displayName } = req.body;
   const userId = req.user._id;
 
-  if (!displayName?.trim()) throw new ApiError(400, "Display name is required");
+  if (!displayName?.trim()) {
+    throw new ApiError(400, "Display name is required");
+  }
 
   const membership = await CommunityMembership.findOneAndUpdate(
     { community: communityId, user: userId },
@@ -462,8 +499,9 @@ export const updateDisplayName = asyncHandler(async (req, res) => {
     { new: true }
   ).populate("user", "username profilePicture");
 
-  if (!membership)
+  if (!membership) {
     throw new ApiError(404, "You are not a member of this community");
+  }
 
   return res
     .status(200)
