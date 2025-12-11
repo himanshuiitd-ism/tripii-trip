@@ -15,6 +15,7 @@ import CommentPage from "./components/home/CommentPage";
 import MiniAppLayout from "./shared/MiniAppLayout";
 import MiniCommunityLayout from "./shared/MiniCommunityLayout";
 import Community from "./components/community/Community";
+import MiniSundayLayout from "./shared/MiniSundayLayout";
 
 function RequireAuth({ children }) {
   const user = useSelector((s) => s.auth.user);
@@ -38,8 +39,6 @@ function AppRouter() {
             </NoAuth>
           }
         />
-        <Route path="/chatbot" element={<Chatbot />} />
-        
         {/* Protected Layout */}
         <Route
           element={
@@ -55,6 +54,9 @@ function AppRouter() {
           </Route>
           <Route element={<MiniCommunityLayout />}>
             <Route path="/community" element={<Community />} />
+          </Route>
+          <Route element={<MiniSundayLayout />}>
+            <Route path="/chatbot" element={<Chatbot />} />
           </Route>
         </Route>
 

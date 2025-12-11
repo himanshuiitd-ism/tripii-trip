@@ -65,15 +65,89 @@
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
+.dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sundayHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  margin-left: 4px;
+}
+
+.sundayIcon {
+  height: 40px;
+  width: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(0, 0, 0);
+  margin-bottom: 10px;
+}
+
+.sundayName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #222;
+}
+
+.messageWrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* User → Right side */
+.userWrapper {
+  align-items: flex-end;
+}
+
+/* AI → Left side */
+.botWrapper {
+  align-items: flex-start;
+}
+
+/* Sunday header */
+.sundayHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  margin-left: 4px;
+}
+
+.sundayIcon {
+  font-size: 20px;
+}
+
+.sundayName {
+  font-size: 16px;
+  font-weight: 600;
+  color: #222;
 }

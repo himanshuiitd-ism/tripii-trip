@@ -1,13 +1,12 @@
 .chatArea {
-    background-color: white;
-    padding: 5px;
-    margin-top: 0px;
-    margin-left: 20%;
-    margin-right: 20%;
-    border-radius: 15px;
-    height: 45px;
-    display: flex;
-    align-items: center;
+  background-color: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(10px);
+  padding: 8px 20px;
+  border-radius: 20px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  width: 100%;
 }
 
 .inputField {
@@ -15,9 +14,10 @@
   width: 100%;
   resize: none;
   overflow-y: hidden;
-  min-height: 40px;
+  min-height: 30px;
   max-height: 150px;
   padding: 10px 15px;
+  background-color: white;
   border: 1px solid #ccc;
   border-radius: 20px;
   font-family: inherit;
@@ -27,13 +27,32 @@
 }
 
 .inputField:focus {
-  border-color: #007bff;
+  border-color: #17e5c9;
+}
+
+.enterButton {
+  height: 50px;
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0px solid;
+  background-color: #17e5c9;
+  transition: all 0.2s ease-in-out;
+  border-radius: 50%;
 }
 
 .submitIcon {
-    font-size: 35px;
-    color: black;
-    border: 0px solid;
-    background-color: #17E5C9;
-    padding: 7px;
+  font-size: 40px;
+  color: black;
+  padding: 7px;
+  transition: all 0.2s ease-in-out;
+}
+
+.enterButton:hover .submitIcon {
+  font-size: 45px;
+}
+
+.enterButton:hover {
+  background-color: #007bff;
 }

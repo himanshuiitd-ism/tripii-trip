@@ -20,6 +20,7 @@ const Navbar = () => {
       <div className="navbar-middle">
         <button onClick={() => navigate("/")}>Home</button>
         <button onClick={() => navigate("/community")}>Communities</button>
+        <button onClick={() => navigate("/chatbot")}>Sunday AI</button>
         <button>Trips</button>
         <button>Places</button>
         <button>Marketplace</button>
