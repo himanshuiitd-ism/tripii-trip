@@ -17,6 +17,7 @@ html,
 body,
 #root {
   height: 100%;
+  overflow-y: scroll;
 }
 
 body {
@@ -138,7 +139,7 @@ body {
 }
 
 .leftsidebar {
-  width: 18.5vw;
+  width: 19vw;
   margin-top: 60px;
   padding: 10px 10px;
   position: fixed;
@@ -147,6 +148,7 @@ body {
   bottom: 0;
   overflow-y: auto;
   border-right: 1px solid rgb(187, 187, 187);
+  background-color: rgb(240, 240, 240);
 }
 
 /* INNER WRAPPER */
@@ -158,12 +160,31 @@ body {
   top: 0px;
 }
 
+/* ================================
+   LEFT SIDEBAR SCROLLBAR (THIN + LIGHT)
+   ================================ */
+
+.leftsidebar::-webkit-scrollbar {
+  width: 0px; /* Very thin scrollbar */
+}
+
+.leftsidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0); /* Slightly darker on hover */
+}
+
+/* Firefox support */
+.leftsidebar {
+  scrollbar-width: 0;
+}
+
 /* CARD */
 .ls-card {
   background: var(--surface-light);
   border: 1px solid var(--border-light);
   border-radius: 12px;
   overflow: hidden;
+  width: 100%;
+  background-color: rgb(255, 255, 255);
 }
 
 /* HEADER */
@@ -171,17 +192,19 @@ body {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  padding: 14px 12px;
+  align-items: center;
+  padding: 5px 12px;
   border-bottom: 1px solid var(--border-light);
   background: var(--surface-light);
   cursor: pointer;
+  border-bottom: 1px solid rgb(240, 240, 240);
 }
 
 .ls-card-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-muted-light);
-  text-transform: uppercase;
+  padding: 10px 0 10px 0;
 }
 
 .ls-expand-icon {
@@ -219,15 +242,107 @@ body {
   background: #e9e9e9;
 }
 
+/* COMMUNITY ROW CARD */
+.ls-community-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  /* background: #f7f7f7; */
+  padding: 8px;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.ls-community-row:hover {
+  background: #ececec;
+}
+
+/* IMAGE */
+.ls-community-img {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+/* CONTENT */
+.ls-community-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ls-community-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-light);
+}
+
+.ls-community-stats {
+  font-size: 12px;
+  color: var(--text-muted-light);
+}
+
+/* TAG COUNT BADGE */
+.ls-tag-circle {
+  padding: 0 5px;
+  height: max-content;
+  width: max-content;
+  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+/* TAG DASHBOARD OVER IMAGE */
+.ls-tag-dashboard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+
+  color: white;
+  padding: 8px;
+  border-radius: 10px;
+
+  font-size: 12px;
+
+  z-index: 10;
+  animation: fadein 0.15s ease-out;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* SHOW MORE BUTTON */
 .ls-more {
-  margin-top: 10px;
   border: none;
   background: none;
-  color: var(--primary);
+  color: #15f0db;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: underline;
 }
 
 .ls-more:hover {
@@ -902,8 +1017,8 @@ body {
 .communityhub {
   display: flex;
   flex-direction: column;
-  margin-left: 40px;
-  width: 78vw;
+  margin-left: 60px;
+  width: 76vw;
 }
 
 .communitycard {

@@ -6,7 +6,7 @@ const CommunityCard = ({ community, onClick }) => {
   const [showTags, setShowTags] = useState(false);
 
   return (
-    <div className="community-card">
+    <div className="community-card" style={{ position: "relative" }}>
       {/* TAG GLASS BOX */}
       {showTags && (
         <div className="absolute top-0 left-0 right-0 bg-black/40 backdrop-blur-md text-white p-3 rounded-lg text-xs shadow-xl z-20 animate-fade-in">

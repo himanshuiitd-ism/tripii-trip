@@ -215,7 +215,12 @@ const CommunityHub = () => {
         <>
           {/* MY COMMUNITIES */}
           <section>
-            <h2 className="text-xl font-bold mb-2">My Communities</h2>
+            <h2
+              className="text-xl font-bold mb-2"
+              style={{ marginBottom: "30px" }}
+            >
+              My Communities
+            </h2>
 
             {my.length === 0 ? (
               <p className="opacity-70">
@@ -236,8 +241,13 @@ const CommunityHub = () => {
           </section>
 
           {/* SUGGESTED COMMUNITIES */}
-          <section>
-            <h2 className="text-xl font-bold mb-2">Suggested Communities</h2>
+          <section style={{ marginTop: "60px" }}>
+            <h2
+              className="text-xl font-bold mb-2"
+              style={{ marginBottom: "30px" }}
+            >
+              Suggested Communities
+            </h2>
 
             {topSuggested.length === 0 ? (
               <p className="opacity-70">No suggestions available.</p>

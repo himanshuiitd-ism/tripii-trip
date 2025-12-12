@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { createCommunity } from "@/api/community";
 import { toast } from "react-hot-toast";
+import { useDispatch, useSelector } from "react-redux";
+import { setMyCommunities } from "@/redux/communitySlice";
 
 const TAG_OPTIONS = [
   "Adventure",
@@ -19,7 +21,8 @@ const TAG_OPTIONS = [
   "Nightlife",
 ];
 
-const CreateCommunityOverlay = ({ isOpen, onClose, refresh }) => {
+const CreateCommunityOverlay = ({ isOpen, onClose }) => {
+  const { my } = useSelector((state) => state.community);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("private_group");
@@ -28,6 +31,7 @@ const CreateCommunityOverlay = ({ isOpen, onClose, refresh }) => {
   const [cover, setCover] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
 
   if (!isOpen) return null;
 
@@ -55,10 +59,11 @@ const CreateCommunityOverlay = ({ isOpen, onClose, refresh }) => {
 
     setLoading(true);
     try {
-      await createCommunity(form);
+      const res = await createCommunity(form);
       toast.success("Community created!");
+      console.log("responses:", res);
+      dispatch(setMyCommunities([res?.data.data, ...my]));
       onClose();
-      refresh?.();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to create.");
     }

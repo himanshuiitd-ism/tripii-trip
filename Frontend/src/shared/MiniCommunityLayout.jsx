@@ -2,6 +2,7 @@
 import { Outlet } from "react-router-dom";
 import LeftSidebar from "@/components/home/LeftSidebar";
 import useGetMyCommunities from "@/hooks/useGetMyCommunities";
+import CreateCommunityOverlay from "@/components/community/CreateCommunityOverlay";
 
 const MiniCommunityLayout = () => {
   useGetMyCommunities();
