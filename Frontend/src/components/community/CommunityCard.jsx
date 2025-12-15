@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useDispatch } from "react-redux";
 
 const CommunityCard = ({ community, onClick }) => {
   const bg = community?.backgroundImage?.url || "";
   const tags = community?.tags || [];
   const [showTags, setShowTags] = useState(false);
-
+  const dispatch = useDispatch();
   return (
     <div className="community-card" style={{ position: "relative" }}>
       {/* TAG GLASS BOX */}

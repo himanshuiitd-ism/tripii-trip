@@ -117,7 +117,11 @@ const PostCard = ({ post }) => {
       </div>
 
       {/* CAPTION */}
-      {post.caption && <p className="postcard-caption">{post.caption}</p>}
+      {post.caption && (
+        <p className="postcard-caption" style={{ fontSize: "16px" }}>
+          {post.caption}
+        </p>
+      )}
 
       {/* MEDIA CAROUSEL + THUMBNAILS (RESTORED!) */}
       {post.media?.length > 0 && (

@@ -16,7 +16,7 @@ const MiniCommunityLayout = () => {
       />
 
       {/* Main center content */}
-      <div style={{ marginLeft: "18vw", marginTop: "80px" }}>
+      <div style={{ marginLeft: "19vw", marginTop: "80px" }}>
         <Outlet />
       </div>
     </div>

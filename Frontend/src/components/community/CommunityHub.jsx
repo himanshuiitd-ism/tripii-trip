@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useState } from "react";
 import CommunityCard from "@/components/community/CommunityCard";
 import CreateCommunityOverlay from "@/components/community/CreateCommunityOverlay";
 import { searchCommunities } from "@/api/community";
+import { setSelectedCommunity } from "@/redux/communitySlice";
 
 const TAGS = [
   "Adventure",
@@ -23,9 +24,9 @@ const TAGS = [
 ];
 
 const CommunityHub = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-
-  const { my, suggested } = useSelector((s) => s.community);
+  const { my, suggested, selectedCommunity } = useSelector((s) => s.community);
 
   const [showOverlay, setShowOverlay] = useState(false);
 
@@ -36,6 +37,8 @@ const CommunityHub = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [debounceTimer, setDebounceTimer] = useState(null);
+
+  console.log();
 
   // FLEX GRID
   const GRID = "flex flex-wrap gap-5";
@@ -204,7 +207,10 @@ const CommunityHub = () => {
                 <div key={c._id} className="communitycard">
                   <CommunityCard
                     community={c}
-                    onClick={() => navigate(`/community/${c._id}`)}
+                    onClick={() => {
+                      dispatch(setSelectedCommunity(c)),
+                        navigate(`/community/${c._id}`);
+                    }}
                   />
                 </div>
               ))}
@@ -232,7 +238,10 @@ const CommunityHub = () => {
                   <div key={c._id} className="communitycard">
                     <CommunityCard
                       community={c}
-                      onClick={() => navigate(`/community/${c._id}`)}
+                      onClick={() => {
+                        dispatch(setSelectedCommunity(c)),
+                          navigate(`/community/${c._id}`);
+                      }}
                     />
                   </div>
                 ))}
@@ -257,7 +266,10 @@ const CommunityHub = () => {
                   <div key={c._id} className="communitycard">
                     <CommunityCard
                       community={c}
-                      onClick={() => navigate(`/community/${c._id}`)}
+                      onClick={() => {
+                        dispatch(setSelectedCommunity(c)),
+                          navigate(`/community/${c._id}`);
+                      }}
                     />
                   </div>
                 ))}

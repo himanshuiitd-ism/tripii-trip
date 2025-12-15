@@ -4,13 +4,12 @@ import { persistReducer, persistStore } from "redux-persist";
 import authSlice from "./authslice.js";
 import postSlice from "./postSlice.js";
 import communitySlice from "./communitySlice.jsx";
-import chatbotReducer from "./chatbotSlice.js"; 
 
 const rootReducer = combineReducers({
   auth: authSlice,
   post: postSlice,
   community: communitySlice,
-  chatbot: chatbotReducer, 
+  chatbot: chatbotReducer,
 });
 
 const persistConfig = {

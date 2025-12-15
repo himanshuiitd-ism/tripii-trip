@@ -21,6 +21,7 @@ import CommentPage from "@/components/home/CommentPage";
 import Chatbot from "./pages/chatbot/Chatbot.jsx";
 import CommunityHub from "./components/community/CommunityHub";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import Community from "./components/community/Community";
 
 // Auth Logic
 function RequireAuth({ children }) {
@@ -63,7 +64,8 @@ function AppRouter() {
 
           {/* Community Hub Layout */}
           <Route element={<MiniCommunityLayout />}>
-            <Route path="/community" element={<CommunityHub />} />
+            <Route path="/communities" element={<CommunityHub />} />
+            <Route path="/community/:id" element={<Community />} />
           </Route>
 
           {/* Sunday AI layout */}
