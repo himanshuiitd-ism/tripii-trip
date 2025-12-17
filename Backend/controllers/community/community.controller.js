@@ -444,6 +444,7 @@ export const getUserCommunities = asyncHandler(async (req, res) => {
       tags
       members
       lastActivityAt
+      createdAt
       `
     )
     .populate("createdBy", "username profilePicture.url")
@@ -462,11 +463,11 @@ export const getUserCommunities = asyncHandler(async (req, res) => {
   });
 
   // 🔥 SORT BY LAST ACTIVITY (NOT updatedAt)
-  final.sort(
-    (a, b) =>
-      new Date(b.lastActivityAt || b.joinedAt) -
-      new Date(a.lastActivityAt || a.joinedAt)
-  );
+  final.sort((a, b) => {
+    const aTime = new Date(a.lastActivityAt || a.createdAt);
+    const bTime = new Date(b.lastActivityAt || b.createdAt);
+    return bTime - aTime; // Descending order (most recent first)
+  });
 
   return res
     .status(200)

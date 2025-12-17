@@ -36,6 +36,7 @@ const CommunityPost = ({ post }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedPollOptions, setSelectedPollOptions] = useState([]);
+  const [isChangingVote, setIsChangingVote] = useState(false); // 🔥 NEW
 
   const menuRef = useRef(null);
 
@@ -104,7 +105,7 @@ const CommunityPost = ({ post }) => {
   }, [latestPost.reactions]);
 
   /* ---------------------------
-     POLL LOGIC
+     🔥 UPDATED POLL LOGIC
   ---------------------------- */
   const hasVoted = useMemo(() => {
     if (!latestPost.poll?.options || !user?._id) return false;
@@ -132,7 +133,8 @@ const CommunityPost = ({ post }) => {
   }, [latestPost.poll?.expiresAt]);
 
   const togglePollOption = (optionId) => {
-    if (hasVoted || isPollExpired) return;
+    // 🔥 Allow clicking only if not expired AND (not voted OR is changing vote)
+    if (isPollExpired || (hasVoted && !isChangingVote)) return;
 
     if (latestPost.poll.allowMultipleVotes) {
       setSelectedPollOptions((prev) =>
@@ -152,11 +154,24 @@ const CommunityPost = ({ post }) => {
       setLoading(true);
       await voteOnPoll(latestPost._id, selectedPollOptions);
       setSelectedPollOptions([]);
+      setIsChangingVote(false); // 🔥 Reset changing state
     } catch (err) {
       console.error("Poll vote error:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // 🔥 NEW: Start changing vote
+  const handleChangeVote = () => {
+    setIsChangingVote(true);
+    setSelectedPollOptions(Array.from(myVotes));
+  };
+
+  // 🔥 NEW: Cancel changing vote
+  const handleCancelChange = () => {
+    setIsChangingVote(false);
+    setSelectedPollOptions([]);
   };
 
   /* ---------------------------
@@ -333,7 +348,7 @@ const CommunityPost = ({ post }) => {
             </p>
           )}
 
-          {/* 🔥 POLL */}
+          {/* 🔥 UPDATED POLL */}
           {latestPost.type === "poll" && latestPost.poll && (
             <div className="mt-3 p-4 bg-white dark:bg-surface-darker rounded-lg border">
               <div className="flex items-start justify-between mb-3">
@@ -363,7 +378,7 @@ const CommunityPost = ({ post }) => {
                     <button
                       key={option.id}
                       onClick={() => togglePollOption(option.id)}
-                      disabled={hasVoted || isPollExpired}
+                      disabled={isPollExpired || (hasVoted && !isChangingVote)}
                       className={`w-full text-left p-3 rounded-lg border transition ${
                         isVoted
                           ? "border-primary bg-primary/10"
@@ -371,21 +386,21 @@ const CommunityPost = ({ post }) => {
                           ? "border-primary bg-primary/5"
                           : "border-border-light hover:border-primary/50"
                       } ${
-                        hasVoted || isPollExpired
+                        isPollExpired || (hasVoted && !isChangingVote)
                           ? "cursor-not-allowed"
                           : "cursor-pointer"
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium">{option.text}</span>
-                        {hasVoted && (
+                        {(hasVoted || isChangingVote) && (
                           <span className="text-sm font-bold">
                             {percentage}%
                           </span>
                         )}
                       </div>
 
-                      {hasVoted && (
+                      {(hasVoted || isChangingVote) && (
                         <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
                           <div
                             className="absolute top-0 left-0 h-full bg-primary transition-all"
@@ -398,7 +413,7 @@ const CommunityPost = ({ post }) => {
                         <span className="text-xs text-text-muted-light">
                           {voteCount} {voteCount === 1 ? "vote" : "votes"}
                         </span>
-                        {isVoted && (
+                        {isVoted && !isChangingVote && (
                           <span className="text-xs text-primary font-medium">
                             ✓ Your vote
                           </span>
@@ -409,6 +424,7 @@ const CommunityPost = ({ post }) => {
                 })}
               </div>
 
+              {/* 🔥 UPDATED BUTTON LOGIC */}
               {!hasVoted &&
                 !isPollExpired &&
                 selectedPollOptions.length > 0 && (
@@ -420,6 +436,35 @@ const CommunityPost = ({ post }) => {
                     {loading ? "Voting..." : "Submit Vote"}
                   </button>
                 )}
+
+              {/* 🔥 NEW: Change Vote Button */}
+              {hasVoted && !isPollExpired && !isChangingVote && (
+                <button
+                  onClick={handleChangeVote}
+                  className="mt-3 w-full border border-primary text-primary py-2 rounded-lg font-semibold hover:bg-primary/5"
+                >
+                  Change Vote
+                </button>
+              )}
+
+              {/* 🔥 NEW: Cancel/Update Buttons When Changing */}
+              {hasVoted && !isPollExpired && isChangingVote && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={handleCancelChange}
+                    className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePollVote}
+                    disabled={loading || selectedPollOptions.length === 0}
+                    className="flex-1 bg-primary text-white py-2 rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {loading ? "Updating..." : "Update Vote"}
+                  </button>
+                </div>
+              )}
 
               <div className="mt-3 text-xs text-text-muted-light">
                 {latestPost.poll.totalVotes}{" "}
@@ -485,8 +530,9 @@ const CommunityPost = ({ post }) => {
                 className="material-symbols-outlined !text-[18px]"
                 onClick={() => {
                   dispatch(setSelectedMessage(latestPost));
-                  navigate(`/community/${latestPost.community}/message/${latestPost._id}/comments
-`);
+                  navigate(
+                    `/community/${latestPost.community}/message/${latestPost._id}/comments`
+                  );
                 }}
               >
                 mode_comment

@@ -187,6 +187,12 @@ export const sendMessage = asyncHandler(async (req, res) => {
   // 🔥 Emit immediately
   emitToCommunity(communityId.toString(), "community:message:new", emitPayload);
 
+  await Community.findByIdAndUpdate(
+    communityId,
+    { lastActivityAt: new Date() },
+    { new: true }
+  );
+
   // ---------- MENTION NOTIFICATIONS (SAFE ADD-ON) ----------
   try {
     if (Array.isArray(mentions) && mentions.length > 0) {
@@ -836,15 +842,6 @@ export const voteOnPoll = asyncHandler(async (req, res) => {
   const { optionIds } = req.body;
   const userId = req.user._id;
 
-  //debug
-  console.log("=== VOTE ON POLL DEBUG ===");
-  console.log("Message ID:", messageId);
-  console.log("Request body:", req.body);
-  console.log("optionIds:", optionIds);
-  console.log("optionIds type:", typeof optionIds);
-  console.log("Is Array?", Array.isArray(optionIds));
-  console.log("========================");
-
   if (!Array.isArray(optionIds) || !optionIds.length)
     throw new ApiError(400, "Select at least one option");
 
@@ -862,27 +859,24 @@ export const voteOnPoll = asyncHandler(async (req, res) => {
 
   const numeric = optionIds.map((n) => parseInt(n));
 
-  // Remove previous votes if single-vote poll
-  if (!message.poll.allowMultipleVotes) {
-    message.poll.options.forEach((o) => {
-      o.votes = (o.votes || []).filter(
-        (v) => v.toString() !== userId.toString()
-      );
-    });
-  }
+  // 🔥 ALWAYS REMOVE PREVIOUS VOTES FIRST (allows changing vote)
+  message.poll.options.forEach((o) => {
+    o.votes = (o.votes || []).filter((v) => v.toString() !== userId.toString());
+  });
 
-  // Add new votes
-  numeric.forEach((id) => {
+  // 🔥 ADD NEW VOTES
+  // For single-vote polls: only first option will be added
+  // For multi-vote polls: all selected options will be added
+  const votesToAdd = message.poll.allowMultipleVotes ? numeric : [numeric[0]]; // Only take first selection for single-vote polls
+
+  votesToAdd.forEach((id) => {
     const option = message.poll.options.find((o) => o.id === id);
-    if (
-      option &&
-      !option.votes.some((v) => v.toString() === userId.toString())
-    ) {
+    if (option) {
       option.votes.push(userId);
     }
   });
 
-  // 🔥 FIX: Calculate unique voters (not just vote count)
+  // 🔥 CALCULATE UNIQUE VOTERS
   const uniqueVoters = new Set();
   message.poll.options.forEach((o) => {
     (o.votes || []).forEach((v) => uniqueVoters.add(v.toString()));
@@ -891,6 +885,13 @@ export const voteOnPoll = asyncHandler(async (req, res) => {
 
   message.markModified("poll");
   await message.save();
+
+  // 🔥 UPDATE COMMUNITY ACTIVITY
+  await Community.findByIdAndUpdate(
+    message.community,
+    { lastActivityAt: new Date() },
+    { new: true }
+  );
 
   emitToCommunity(message.community.toString(), "community:poll:updated", {
     messageId,

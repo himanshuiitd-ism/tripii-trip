@@ -18,13 +18,13 @@ import MiniSundayLayout from "./shared/MiniSundayLayout";
 import AuthPage from "@/pages/auth/AuthPage";
 import HomePage from "@/pages/auth/HomePage";
 import CommentPage from "@/components/home/CommentPage";
-import Chatbot from "./pages/chatbot/Chatbot.jsx";
 import CommunityHub from "./components/community/CommunityHub";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import Community from "./components/community/Community";
 import SocketProvider from "./providers/SocketProvider";
 import CommComment from "./components/community/comments/CommComment";
 import Places from "./pages/places/Places";
+import Chatbot from "./pages/chatbot/Chatbot";
 
 // Auth Logic
 function RequireAuth({ children }) {

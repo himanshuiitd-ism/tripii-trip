@@ -119,7 +119,7 @@ const CommentItem = ({
 
   return (
     <div
-      className={`flex flex-col transition-all duration-300 ${
+      className={`communityItem flex flex-col transition-all duration-300 ${
         comment._remove ? "opacity-0 translate-x-4" : ""
       }`}
     >
@@ -159,7 +159,7 @@ const CommentItem = ({
           )}
 
           {Object.keys(groupedReactions).length > 0 && (
-            <div className="flex gap-2 mt-2 flex-wrap">
+            <div className="commentItem-comments flex gap-2 mt-2 flex-wrap community-comment-emojis">
               {Object.entries(groupedReactions).map(([emoji, users]) => (
                 <button
                   key={emoji}

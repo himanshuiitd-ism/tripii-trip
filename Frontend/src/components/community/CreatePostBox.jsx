@@ -19,6 +19,8 @@ export default function CreatePostBox() {
   const [isPoll, setIsPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [allowMultipleVotes, setAllowMultipleVotes] = useState(false); // 🔥 NEW
+  const [pollDuration, setPollDuration] = useState(24); // 🔥 NEW (hours)
 
   /* ---------------- CLEAR IMAGE ---------------- */
   const clearImage = () => {
@@ -36,6 +38,8 @@ export default function CreatePostBox() {
     if (isPoll) {
       setPollQuestion("");
       setPollOptions(["", ""]);
+      setAllowMultipleVotes(false);
+      setPollDuration(24);
     }
     setIsPoll((p) => !p);
   };
@@ -78,8 +82,8 @@ export default function CreatePostBox() {
           JSON.stringify({
             question: pollQuestion.trim(),
             options: validOptions,
-            allowMultipleVotes: false,
-            expiresInHours: 24,
+            allowMultipleVotes, // 🔥 Pass user choice
+            expiresInHours: pollDuration, // 🔥 Pass duration
           })
         );
       }
@@ -94,6 +98,8 @@ export default function CreatePostBox() {
       setIsPoll(false);
       setPollQuestion("");
       setPollOptions(["", ""]);
+      setAllowMultipleVotes(false);
+      setPollDuration(24);
     } catch (err) {
       console.error("Post error:", err);
       alert(err?.response?.data?.message || "Failed to post");
@@ -126,7 +132,7 @@ export default function CreatePostBox() {
 
           {/* POLL */}
           {isPoll && (
-            <div className="mt-3 space-y-2 p-3 bg-background-light rounded-lg border">
+            <div className="mt-3 space-y-3 p-4 bg-background-light rounded-lg border">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold">Create Poll</span>
                 <button
@@ -183,6 +189,42 @@ export default function CreatePostBox() {
                   + Add option
                 </button>
               )}
+
+              {/* 🔥 POLL SETTINGS */}
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-text-muted-light">
+                    Allow multiple votes
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowMultipleVotes}
+                      onChange={(e) => setAllowMultipleVotes(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-text-muted-light">
+                    Poll duration
+                  </span>
+                  <select
+                    value={pollDuration}
+                    onChange={(e) => setPollDuration(Number(e.target.value))}
+                    className="px-3 py-1 rounded border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value={1}>1 hour</option>
+                    <option value={6}>6 hours</option>
+                    <option value={12}>12 hours</option>
+                    <option value={24}>1 day</option>
+                    <option value={72}>3 days</option>
+                    <option value={168}>1 week</option>
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
@@ -290,7 +332,7 @@ export default function CreatePostBox() {
       {showGifPicker && !isPoll && (
         <GifPickerOverlay
           onSelect={(url) => {
-            setGifUrl(url); // 🔥 preview stays
+            setGifUrl(url);
             setShowGifPicker(false);
           }}
           onClose={() => setShowGifPicker(false)}
