@@ -351,7 +351,7 @@ export const getCommunityProfile = asyncHandler(async (req, res) => {
   // Fetch community
   const community = await Community.findById(communityId)
     .select(
-      "name description backgroundImage.url rules type visibility createdBy updatedAt memberCount roomsLast7DaysCount rooms featuredTrips"
+      "name description backgroundImage.url rules type visibility createdBy updatedAt memberCount roomsLast7DaysCount rooms featuredTrips tags"
     )
     .populate("createdBy", "username profilePicture bio")
     .populate({
@@ -683,6 +683,73 @@ export const searchMyCommunities = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Add this to your community controller file
+
+export const getSimilarCommunities = asyncHandler(async (req, res) => {
+  const { communityId } = req.params;
+  const { limit = 10 } = req.query;
+  const userId = req.user._id;
+
+  // 1️⃣ GET THE CURRENT COMMUNITY
+  const currentCommunity = await Community.findById(communityId)
+    .select("tags type")
+    .lean();
+
+  if (!currentCommunity) {
+    throw new ApiError(404, "Community not found");
+  }
+
+  // If no tags, return empty
+  if (!currentCommunity.tags || currentCommunity.tags.length === 0) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { communities: [] }, "No tags to match"));
+  }
+
+  // 2️⃣ FIND COMMUNITIES WITH MATCHING TAGS
+  const similarCommunities = await Community.find({
+    _id: { $ne: communityId }, // Exclude current community
+    tags: { $in: currentCommunity.tags }, // Match any tag
+    type: { $in: ["public_group", "regional_hub", "global_hub"] }, // Only public communities
+  })
+    .select(
+      "name tags backgroundImage.url type memberCount roomsLast7DaysCount lastActivityAt"
+    )
+    .sort({ memberCount: -1, roomsLast7DaysCount: -1, lastActivityAt: -1 })
+    .limit(parseInt(limit))
+    .lean();
+
+  // 3️⃣ CHECK USER MEMBERSHIP FOR EACH RESULT
+  const communityIds = similarCommunities.map((c) => c._id);
+
+  const memberships = await CommunityMembership.find({
+    community: { $in: communityIds },
+    user: userId,
+  }).select("community role");
+
+  const memMap = new Map(memberships.map((m) => [String(m.community), m.role]));
+
+  // 4️⃣ ENRICH WITH MEMBERSHIP STATUS
+  const enriched = similarCommunities.map((c) => ({
+    ...c,
+    isMember: memMap.has(String(c._id)),
+    userRole: memMap.get(String(c._id)) || null,
+  }));
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { communities: enriched },
+        "Similar communities fetched"
+      )
+    );
+});
+
+// Route to add in your routes file:
+// router.get("/similarCommunities/:communityId", isAuthenticated, getSimilarCommunities);
 
 /**
  * SUGGESTED COMMUNITIES

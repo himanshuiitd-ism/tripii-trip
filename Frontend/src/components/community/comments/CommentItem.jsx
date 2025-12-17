@@ -148,14 +148,18 @@ const CommentItem = ({
             )}
           </div>
 
-          {comment.content && <p className="text-sm mt-1">{comment.content}</p>}
+          {comment.content && (
+            <p className="text-mid mt-1">{comment.content}</p>
+          )}
 
           {comment.media?.url && (
-            <img
-              src={comment.media.url}
-              className="mt-2 rounded-lg max-h-[300px] object-contain"
-              alt="Comment media"
-            />
+            <div className="mt-2 w-full flex justify-start">
+              <img
+                src={comment.media.url}
+                className="rounded-lg max-h-[400px] object-contain"
+                alt="Comment media"
+              />
+            </div>
           )}
 
           {Object.keys(groupedReactions).length > 0 && (

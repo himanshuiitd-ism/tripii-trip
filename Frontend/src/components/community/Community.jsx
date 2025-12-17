@@ -7,7 +7,7 @@ import { socket } from "../../../Socket.js";
 import CommunityHeader from "./CommunityHeader.jsx";
 import CommunityTabs from "./CommunityTabs.jsx";
 import RightSidebar from "./RightSidebar.jsx";
-import RoomsSidebar from "./RoomSidebar.jsx";
+// import RoomsSidebar from "./RoomSidebar.jsx";
 import useCommunityProfile from "@/hooks/useCommunityProfile";
 
 export default function Community() {
@@ -37,7 +37,7 @@ export default function Community() {
         </div>
 
         <aside className="xl:col-span-1 space-y-6">
-          <RoomsSidebar />
+          {/* <RoomsSidebar /> */}
           <RightSidebar profile={profile} />
         </aside>
       </div>

@@ -11,6 +11,7 @@ const TAG_OPTIONS = [
   "Photography",
   "Food",
   "City",
+  "State",
   "Friends",
   "Nature",
   "Sports",
@@ -27,6 +28,7 @@ const CreateCommunityOverlay = ({ isOpen, onClose }) => {
   const [description, setDescription] = useState("");
   const [type, setType] = useState("private_group");
   const [tags, setTags] = useState([]);
+  const [rules, setRules] = useState([{ title: "", description: "" }]);
 
   const [cover, setCover] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -47,6 +49,26 @@ const CreateCommunityOverlay = ({ isOpen, onClose }) => {
     if (f) setPreview(URL.createObjectURL(f));
   };
 
+  const handleRuleChange = (index, field, value) => {
+    const newRules = [...rules];
+    newRules[index][field] = value;
+    setRules(newRules);
+  };
+
+  const addRule = () => {
+    if (rules.length < 20) {
+      setRules([...rules, { title: "", description: "" }]);
+    } else {
+      toast.error("Maximum 20 rules allowed");
+    }
+  };
+
+  const removeRule = (index) => {
+    if (rules.length > 1) {
+      setRules(rules.filter((_, i) => i !== index));
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name.trim()) return toast.error("Community name is required.");
 
@@ -55,6 +77,11 @@ const CreateCommunityOverlay = ({ isOpen, onClose }) => {
     form.append("description", description);
     form.append("type", type);
     form.append("tags", JSON.stringify(tags));
+
+    // Filter out empty rules and add to form data
+    const validRules = rules.filter((rule) => rule.title.trim());
+    form.append("rules", JSON.stringify(validRules));
+
     if (cover) form.append("coverImage", cover);
 
     setLoading(true);
@@ -115,6 +142,61 @@ const CreateCommunityOverlay = ({ isOpen, onClose }) => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+            </div>
+
+            {/* RULES SECTION */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium">Community Rules</label>
+
+              {rules.map((rule, index) => (
+                <div
+                  key={index}
+                  className="space-y-2 p-3 rounded-lg border border-border-light dark:border-border-dark"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-500">
+                      Rule {index + 1}
+                    </span>
+                    {rules.length > 1 && (
+                      <button
+                        onClick={() => removeRule(index)}
+                        className="text-red-500 text-xs hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    className="w-full p-2 rounded-lg text-sm border bg-white dark:bg-background-dark"
+                    value={rule.title}
+                    onChange={(e) =>
+                      handleRuleChange(index, "title", e.target.value)
+                    }
+                    placeholder="Rule title (e.g., Be respectful)"
+                  />
+
+                  <textarea
+                    rows={2}
+                    className="w-full p-2 text-sm rounded-lg resize-none border bg-white dark:bg-background-dark"
+                    value={rule.description}
+                    onChange={(e) =>
+                      handleRuleChange(index, "description", e.target.value)
+                    }
+                    placeholder="Rule description (optional)"
+                  />
+                </div>
+              ))}
+
+              {rules.length < 20 && (
+                <button
+                  onClick={addRule}
+                  className="w-full py-2 px-3 rounded-lg text-sm border border-dashed border-primary text-primary hover:bg-primary/5 transition flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg">+</span>
+                  Add Rule
+                </button>
+              )}
             </div>
 
             {/* TAGS */}

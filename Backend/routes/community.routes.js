@@ -6,6 +6,7 @@ import {
   createCommunity,
   deleteCommunity,
   getCommunityProfile,
+  getSimilarCommunities,
   getUserCommunities,
   searchCommunities,
   searchMyCommunities,
@@ -84,6 +85,7 @@ router.get("/getMyCommunities", getUserCommunities);
 router.get("/searchCommunities", searchCommunities);
 router.get("/searchMyCommunities", searchMyCommunities);
 router.get("/SuggestedCommunities", suggestedCommunities);
+router.get("/similarCommunities/:communityId", getSimilarCommunities);
 router.delete("/deletecommunity/:communityId", deleteCommunity);
 
 /* ---------------------------------------------------------

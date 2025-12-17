@@ -1,66 +1,112 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
+import { History, Cake, User } from "lucide-react";
+import { Link } from "react-router-dom";
+import { getSimilarCommunities } from "@/api/community";
 import ActivityItem from "./ActivityItem";
 
 export default function RightSidebar({ profile }) {
+  const rooms = useSelector((s) => s.community.rooms || []);
   const activities = useSelector((s) => s.community.activities || []);
-  const [showAll, setShowAll] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [similarCommunities, setSimilarCommunities] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  /* ---------------- ADMINS ---------------- */
+  // Fetch similar communities based on tags
+  useEffect(() => {
+    if (!profile?._id || !profile?.tags?.length) {
+      setSimilarCommunities([]);
+      return;
+    }
+
+    const fetchSimilar = async () => {
+      setLoading(true);
+      try {
+        const res = await getSimilarCommunities(profile._id, { limit: 10 });
+        setSimilarCommunities(res?.data?.data?.communities || []);
+      } catch (err) {
+        console.error("Failed to fetch similar communities:", err);
+        setSimilarCommunities([]);
+      }
+      setLoading(false);
+    };
+
+    fetchSimilar();
+  }, [profile?._id, profile?.tags]);
+
+  const visibleActivities = showAllActivities
+    ? activities
+    : activities.slice(0, 5);
+  const rules = Array.isArray(profile.rules) ? profile.rules : [];
   const admins =
     profile.members?.filter((m) => ["admin", "owner"].includes(m.role)) || [];
 
-  /* ---------------- ACTIVITIES ---------------- */
-  const visibleActivities = showAll ? activities : activities.slice(0, 5);
-
-  /* ---------------- RULES ---------------- */
-  const rules = Array.isArray(profile.rules) ? profile.rules : [];
-
   return (
-    <div className="space-y-6">
-      {/* ---------------- ADMINS ---------------- */}
-      <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light p-5">
-        <h3 className="font-bold mb-3">Community Admins</h3>
-
-        {admins.length ? (
-          <div className="flex flex-col gap-3">
-            {admins.map((a) => (
-              <div key={a._id} className="flex items-center gap-3">
-                <div
-                  className="w-8 h-8 rounded-full bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(${
-                      a.user?.profilePicture?.url || ""
-                    })`,
-                  }}
-                />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">
-                    {a.displayName || a.user?.username}
-                  </span>
-                  <span className="text-xs text-text-muted-light">
-                    {a.role}
-                  </span>
-                </div>
-              </div>
+    <div className="space-y-4 w-80">
+      {/* ---------------- ROOMS ---------------- */}
+      <div
+        className="rounded-lg p-4"
+        style={{ backgroundColor: "rgba(250,250,250,1)" }}
+      >
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-bold">Rooms</h3>
+          <button className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition">
+            + Create Room
+          </button>
+        </div>
+        {rooms.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {rooms.slice(0, 6).map((r) => (
+              <li key={r._id}>
+                <Link
+                  to={`/room/${r._id}`}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-white transition"
+                >
+                  <div
+                    className="bg-cover bg-center rounded-md w-8 h-8 bg-gray-300"
+                    style={{
+                      backgroundImage: `url(${
+                        r.roombackgroundImage?.url || ""
+                      })`,
+                    }}
+                  />
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-xs font-medium truncate">
+                      {r.name}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {r.members?.length || 0} members
+                    </span>
+                  </div>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <p className="text-sm text-text-muted-light">No admins listed.</p>
+          <p className="text-xs text-gray-600">No rooms yet</p>
+        )}
+        {rooms.length > 6 && (
+          <Link
+            to="#"
+            className="block mt-2 text-xs text-blue-600 hover:underline"
+          >
+            Show all rooms
+          </Link>
         )}
       </div>
 
       {/* ---------------- ACTIVITY ---------------- */}
-      <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold">Activities in Community</h3>
-          <span className="material-symbols-outlined text-text-muted-light">
-            history
-          </span>
+      <div
+        className="rounded-lg p-4"
+        style={{ backgroundColor: "rgba(250,250,250,1)" }}
+      >
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-bold text-sm">Recent Activity</h3>
+          <History size={16} className="text-gray-500" />
         </div>
 
-        {visibleActivities.length ? (
-          <div className="flex flex-col gap-4">
+        {visibleActivities.length > 0 ? (
+          <div className="flex flex-col gap-3">
             {visibleActivities.map((a, i) => (
               <ActivityItem
                 key={a._id}
@@ -70,63 +116,135 @@ export default function RightSidebar({ profile }) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-text-muted-light">No recent activity</p>
+          <p className="text-xs text-gray-600">No recent activity</p>
         )}
 
         {activities.length > 5 && (
           <button
-            onClick={() => setShowAll((s) => !s)}
-            className="mt-4 w-full rounded-full h-9 border border-border-light text-xs font-bold hover:bg-background-light transition"
+            onClick={() => setShowAllActivities((s) => !s)}
+            className="mt-3 w-full rounded-full h-8 bg-white text-xs font-semibold hover:bg-gray-50 transition"
           >
-            {showAll ? "Hide activity" : "View all activity"}
+            {showAllActivities ? "Show less" : "View all activity"}
           </button>
         )}
       </div>
 
       {/* ---------------- ABOUT ---------------- */}
-      <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light p-5">
-        <h3 className="font-bold mb-3">About Community</h3>
+      <div
+        className="rounded-lg p-4"
+        style={{ backgroundColor: "rgba(250,250,250,1)" }}
+      >
+        <h3 className="font-bold text-sm mb-3">About Community</h3>
 
         {/* STATS */}
-        <div className="flex gap-6 mb-4">
+        <div className="grid grid-cols-2 gap-4 mb-3">
           <div>
-            <div className="font-bold text-lg">{profile.memberCount || 0}</div>
-            <div className="text-xs text-text-muted-light">Members</div>
-          </div>
-
-          <div>
-            <div className="font-bold text-lg">
-              {profile.rooms?.length ?? profile.roomsLast7DaysCount ?? 0}
+            <div className="font-bold text-base">
+              {profile.memberCount || 0}
             </div>
-            <div className="text-xs text-text-muted-light">Rooms</div>
+            <div className="text-xs text-gray-600">Members</div>
+          </div>
+          <div>
+            <div className="font-bold text-base">
+              {profile.roomsLast7DaysCount || 0}
+            </div>
+            <div className="text-xs text-gray-600">Rooms/Week</div>
           </div>
         </div>
 
         {/* CREATED DATE */}
-        <div className="text-xs text-text-muted-light flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined !text-base">cake</span>
+        <div className="text-xs text-gray-600 flex items-center gap-2 mb-2">
+          <Cake size={14} />
           Created{" "}
           {new Date(
             profile.createdAt || profile.updatedAt
           ).toLocaleDateString()}
         </div>
 
-        {/* RULES */}
-        {rules.length ? (
-          <div className="border-t pt-3 text-sm">
-            <h4 className="font-bold mb-2">Community Rules</h4>
-            <ul className="flex flex-col gap-1 text-text-muted-light">
-              {rules.map((r, idx) => (
-                <li key={idx}>• {r}</li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <div className="border-t pt-3 text-sm text-text-muted-light">
-            No community rules added.
+        {/* COMMUNITY TYPE */}
+        <div className="text-xs text-gray-600 mb-3">
+          <span className="font-semibold">Type:</span>{" "}
+          {profile.type
+            ?.replace(/_/g, " ")
+            .replace(/\b\w/g, (l) => l.toUpperCase())}
+        </div>
+
+        {/* DESCRIPTION */}
+        {profile.description && (
+          <div>
+            <div className="text-xs font-semibold text-gray-800 mb-1">
+              Description
+            </div>
+            <div className="text-xs text-gray-600 leading-relaxed">
+              {profile.description}
+            </div>
           </div>
         )}
       </div>
+
+      {/* ---------------- RULES ---------------- */}
+      {rules.length > 0 && (
+        <div
+          className="rounded-lg p-4"
+          style={{ backgroundColor: "rgba(250,250,250,1)" }}
+        >
+          <h4 className="font-bold text-sm mb-3">Community Rules</h4>
+          <div className="flex flex-col gap-3">
+            {rules.map((r, idx) => (
+              <div key={r._id || idx} className="text-xs">
+                <div className="font-semibold text-gray-800 mb-1">
+                  {idx + 1}. {r.title}
+                </div>
+                {r.description && (
+                  <p className="text-xs text-gray-600 leading-relaxed">
+                    {r.description}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- SIMILAR COMMUNITIES ---------------- */}
+      {profile.tags?.length > 0 && (
+        <div
+          className="rounded-lg p-4"
+          style={{ backgroundColor: "rgba(250,250,250,1)" }}
+        >
+          <h3 className=" text-md mb-3">Communities of your taste</h3>
+
+          {loading ? (
+            <p className="text-xs text-gray-600">Loading...</p>
+          ) : similarCommunities.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {similarCommunities.map((comm) => (
+                <Link
+                  key={comm._id}
+                  to={`/community/${comm._id}`}
+                  className="flex items-center gap-2 rounded-lg hover:bg-white transition group"
+                >
+                  <div
+                    className="w-10 h-10 rounded-full bg-cover bg-center bg-gray-300 flex-shrink-0"
+                    style={{
+                      backgroundImage: `url(${
+                        comm.backgroundImage?.url || ""
+                      })`,
+                    }}
+                  />
+                  <span className="text-md  text-gray-800 group-hover:text-blue-600 transition truncate">
+                    {comm.name}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-600">
+              No similar communities found
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

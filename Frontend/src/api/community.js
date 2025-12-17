@@ -211,3 +211,9 @@ export const getMyHelpfulMessages = (communityId) =>
   api.get(`/api/community/helpfulMessages/${communityId}`, {
     withCredentials: true,
   });
+
+export const getSimilarCommunities = (communityId, params = {}) =>
+  api.get(`/api/community/similarCommunities/${communityId}`, {
+    params,
+    withCredentials: true,
+  });
