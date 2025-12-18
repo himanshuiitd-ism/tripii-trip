@@ -25,6 +25,7 @@ import SocketProvider from "./providers/SocketProvider";
 import CommComment from "./components/community/comments/CommComment";
 import Places from "./pages/places/Places";
 import Chatbot from "./pages/chatbot/Chatbot";
+import CreateRoom from "./components/community/rooms/CreateRoom";
 
 // Auth Logic
 function RequireAuth({ children }) {
@@ -72,6 +73,10 @@ function AppRouter() {
             <Route
               path="/community/:communityId/message/:messageId/comments"
               element={<CommComment />}
+            />
+            <Route
+              path="/community/:communityId/createRoom"
+              element={<CreateRoom />}
             />
           </Route>
 

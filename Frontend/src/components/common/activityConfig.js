@@ -25,6 +25,11 @@ export const ACTIVITY_CONFIG = {
     emoji: "➕",
     color: "bg-emerald-500",
   },
+  member_joined: {
+    label: "Member_joined",
+    emoji: "😶‍🌫️",
+    color: "bg-green-500",
+  },
   settings_updated: {
     label: "Settings updated",
     emoji: "⚙️",

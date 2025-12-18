@@ -359,7 +359,6 @@ export const getCommunityProfile = asyncHandler(async (req, res) => {
       populate: { path: "user", select: "username profilePicture bio" },
       options: { limit: 50 },
     })
-    .populate("rooms", "name status createdBy tags isPrivate")
     .populate(
       "featuredTrips",
       "title startDate endDate createdBy type coverPhoto.url"

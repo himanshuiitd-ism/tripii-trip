@@ -40,7 +40,7 @@ const CommunityHub = () => {
   const [debounceTimer, setDebounceTimer] = useState(null);
 
   // FLEX GRID
-  const GRID = "flex flex-wrap gap-5";
+  const GRID = "flex flex-wrap gap-7";
 
   // ENTER + DEBOUNCE SEARCH
   const handleSearchChange = (value) => {

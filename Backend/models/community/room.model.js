@@ -1,5 +1,23 @@
 import mongoose, { Schema } from "mongoose";
 
+const ROOM_TAGS = [
+  "Adventure",
+  "Backpacking",
+  "Hiking",
+  "Photography",
+  "Food",
+  "City",
+  "State",
+  "Friends",
+  "Nature",
+  "Sports",
+  "Games",
+  "Culture",
+  "Tech",
+  "Education",
+  "Nightlife",
+];
+
 const roomSchema = new Schema(
   {
     name: { type: String, required: true },
@@ -17,7 +35,6 @@ const roomSchema = new Schema(
       publicId: { type: String, default: "" },
     },
 
-    // members (quick participant list) — keep as User refs (small)
     members: [
       {
         user: { type: Schema.Types.ObjectId, ref: "User" },
@@ -34,27 +51,32 @@ const roomSchema = new Schema(
     roomtype: {
       type: String,
       enum: ["Normal", "Trip"],
+      required: true,
     },
 
-    // If room is connected to a trip
     linkedTrip: { type: Schema.Types.ObjectId, ref: "Trip", default: null },
 
-    // isPrivate: { type: Boolean, default: false },
-
-    // ephemeral room support
     isEphemeral: { type: Boolean, default: false },
-    startDate: { type: Date },
-    endDate: { type: Date }, // after this server should delete messages / room if autoDelete true
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
     autoDeleteAfterEnd: { type: Boolean, default: true },
 
     messages: [{ type: Schema.Types.ObjectId, ref: "MessageInRoom" }],
     pinnedMessage: { type: Schema.Types.ObjectId, ref: "MessageInRoom" },
 
-    tags: [{ type: String }],
+    // User-defined search tags
+    roomTags: {
+      type: [String],
+      enum: ROOM_TAGS,
+      default: [],
+    },
+
+    // Auto-managed status based on dates
     status: {
       type: String,
       enum: ["upcoming", "active", "finished", "cancelled"],
       default: "upcoming",
+      index: true,
     },
 
     externalLink: { label: String, url: String },
@@ -62,6 +84,11 @@ const roomSchema = new Schema(
   { timestamps: true }
 );
 
+// Indexes
 roomSchema.index({ parentCommunity: 1, createdAt: -1 });
+roomSchema.index({ roomTags: 1 });
+roomSchema.index({ status: 1, startDate: 1 });
+roomSchema.index({ name: "text", description: "text" });
 
 export const Room = mongoose.model("Room", roomSchema);
+export { ROOM_TAGS };

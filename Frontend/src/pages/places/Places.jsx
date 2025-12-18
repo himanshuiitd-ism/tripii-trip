@@ -17,7 +17,7 @@ const Places = () => {
 
     try {
       const result = await fetchNews(query);
-
+      console.log("news:", result.data.articles);
       if (result && result.data && result.data.articles) {
         const rawArticles = result.data.articles;
 
@@ -105,38 +105,55 @@ const Places = () => {
   return (
     <>
       {/* Optional: Add a back button to search again */}
-      <div className="container" style={{ marginBottom: "10px" }}>
+      <div
+        className="container"
+        style={{
+          marginBottom: "10px",
+          height: "30px",
+          width: "max-content",
+          backgroundColor: "rgba(255, 255, 255, 0.2)",
+          backdropFilter: "blur(10px)",
+          position: "absolute",
+          top: "80px",
+          left: "20px",
+          zIndex: "2",
+          display: "flex",
+          alignContent: "center",
+          justifyContent: "center",
+          padding: "0 10px",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+          borderRadius: "12px",
+          cursor: "pointer",
+        }}
+        onClick={resetSearch}
+      >
         <button
-          onClick={resetSearch}
           style={{
-            background: "none",
-            border: "none",
-            color: "#666",
-            cursor: "pointer",
-            textDecoration: "underline",
+            fontWeight: "700",
+            color: "white",
           }}
         >
-          &larr; Search another place
+          Back
         </button>
       </div>
+      <div style={{ marginTop: "60px" }}>
+        {" "}
+        <HeroSection place={placeData.place} imageUrl={placeData.heroImage} />
+        <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
+        <div className={styles.contentArea}>
+          {activeTab === "Travel News" && <NewsFeed news={newsArticles} />}
 
-      <HeroSection place={placeData.place} imageUrl={placeData.heroImage} />
-
-      <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      <div className={styles.contentArea}>
-        {activeTab === "Travel News" && <NewsFeed news={newsArticles} />}
-
-        {activeTab !== "Travel News" && (
-          <div className="container">
-            <div className={styles.placeholderBox}>
-              <h3>
-                {activeTab} for {placeData.place}
-              </h3>
-              <p>Fetching data...</p>
+          {activeTab !== "Travel News" && (
+            <div className="container">
+              <div className={styles.placeholderBox}>
+                <h3>
+                  {activeTab} for {placeData.place}
+                </h3>
+                <p>Fetching data...</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   );

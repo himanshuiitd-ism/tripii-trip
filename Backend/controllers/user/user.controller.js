@@ -95,9 +95,12 @@ export const login = asyncHandler(async (req, res) => {
     user._id
   );
 
-  const profile = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
+  const profile = await User.findById(user._id)
+    .select("-password -refreshToken")
+    .populate({
+      path: "following",
+      select: "username profilePicture.url",
+    });
 
   return res
     .cookie("accessToken", accessToken, {
@@ -421,9 +424,12 @@ export const editProfile = asyncHandler(async (req, res) => {
 });
 
 export const getCurrentUser = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).select(
-    "-password -refreshToken"
-  );
+  const user = await User.findById(req.user._id)
+    .select("-password -refreshToken")
+    .populate({
+      path: "following",
+      select: "username profilePicture.url",
+    });
 
   res.status(200).json(new ApiResponse(200, user, "User fetched"));
 });

@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { History, Cake, User } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getSimilarCommunities } from "@/api/community";
 import ActivityItem from "./ActivityItem";
+import { formatDate, ROOM_STATUS_META } from "../common/roomStatus";
 
 export default function RightSidebar({ profile }) {
+  const navigate = useNavigate();
   const rooms = useSelector((s) => s.community.rooms || []);
   const activities = useSelector((s) => s.community.activities || []);
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [similarCommunities, setSimilarCommunities] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  console.log("ROom:", rooms);
 
   // Fetch similar communities based on tags
   useEffect(() => {
@@ -50,41 +54,68 @@ export default function RightSidebar({ profile }) {
       >
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-sm font-bold">Rooms</h3>
-          <button className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition">
+          <button
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
+            onClick={() => navigate(`/community/${profile._id}/createRoom`)}
+          >
             + Create Room
           </button>
         </div>
+
         {rooms.length > 0 ? (
           <ul className="flex flex-col gap-2">
-            {rooms.slice(0, 6).map((r) => (
-              <li key={r._id}>
-                <Link
-                  to={`/room/${r._id}`}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-white transition"
-                >
-                  <div
-                    className="bg-cover bg-center rounded-md w-8 h-8 bg-gray-300"
-                    style={{
-                      backgroundImage: `url(${
-                        r.roombackgroundImage?.url || ""
-                      })`,
-                    }}
-                  />
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-xs font-medium truncate">
-                      {r.name}
+            {rooms.slice(0, 6).map((r) => {
+              const statusMeta =
+                ROOM_STATUS_META[r.status] || ROOM_STATUS_META.upcoming;
+
+              return (
+                <li key={r._id}>
+                  <Link
+                    to={`/room/${r._id}`}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition"
+                  >
+                    {/* ROOM IMAGE */}
+                    <div
+                      className="bg-cover bg-center rounded-md w-10 h-10 shrink-0"
+                      style={{
+                        backgroundImage: `url(${
+                          r.roombackgroundImage?.url || ""
+                        })`,
+                        borderRadius: "50%",
+                      }}
+                    />
+
+                    {/* ROOM INFO */}
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="text-xs font-semibold truncate">
+                        {r.name}
+                      </span>
+
+                      <span className="text-[11px] text-gray-500">
+                        {r.members?.length || 0} members ·{" "}
+                        {formatDate(r.createdAt)}
+                      </span>
+                    </div>
+
+                    {/* STATUS BADGE */}
+                    <span
+                      className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                      style={{
+                        color: statusMeta.color,
+                        backgroundColor: statusMeta.bg,
+                      }}
+                    >
+                      {statusMeta.label}
                     </span>
-                    <span className="text-xs text-gray-500">
-                      {r.members?.length || 0} members
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-xs text-gray-600">No rooms yet</p>
         )}
+
         {rooms.length > 6 && (
           <Link
             to="#"

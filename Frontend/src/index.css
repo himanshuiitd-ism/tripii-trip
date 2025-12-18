@@ -1013,6 +1013,8 @@ body {
   align-items: center;
 }
 
+/* Community */
+
 .communityhub {
   display: flex;
   flex-direction: column;

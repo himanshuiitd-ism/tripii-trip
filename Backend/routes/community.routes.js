@@ -147,7 +147,11 @@ router.get("/helpfulMessages/:communityId", getMyHelpfulMessages);
 /* ---------------------------------------------------------
    ROOMS
 --------------------------------------------------------- */
-router.post("/createRoom/:communityId", createRoom);
+router.post(
+  "/createRoom/:communityId",
+  upload.fields([{ name: "backgroundImage", maxCount: 1 }]),
+  createRoom
+);
 router.get("/getCommunityRooms/:communityId", getCommunityRooms);
 router.get("/myRoom/:communityId", getMyCommunityRooms);
 router.get("/allMyRooms", getMyRoomsAcrossCommunities);

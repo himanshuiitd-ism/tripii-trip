@@ -9,7 +9,7 @@ import getDataUri from "../../utils/datauri.js";
 import { User } from "../../models/user/user.model.js";
 import { Community } from "../../models/community/community.model.js";
 import { CommunityMembership } from "../../models/community/communityMembership.model.js";
-import { Room } from "../../models/community/room.model.js";
+import { Room, ROOM_TAGS } from "../../models/community/room.model.js";
 import { MessageInRoom } from "../../models/community/messageInRoom.model.js";
 import { Trip } from "../../models/trip/trip.model.js";
 import { Activity } from "../../models/community/activity.model.js";
@@ -70,39 +70,47 @@ const uploadRoomMedia = async (file, roomId) => {
   };
 };
 
-/* ===========================
-   CREATE ROOM (with Trip option)
-   =========================== */
+//  CREATE ROOM (with Trip option)
+
 export const createRoom = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
 
-  const {
+  let {
     name,
     description = "",
     startDate,
     endDate,
-    roomtype, // "Normal" | "Trip"
+    roomtype,
     isEphemeral = false,
-    tags = [],
-    initialMembers = [],
-
-    // Trip-only fields
+    roomTags = "[]",
+    initialMembers = "[]",
     tripType,
     location,
   } = req.body;
 
-  // Basic validations
+  // Parse JSON
+  try {
+    roomTags = JSON.parse(roomTags);
+    initialMembers = JSON.parse(initialMembers);
+  } catch (err) {
+    throw new ApiError(400, "Invalid JSON format");
+  }
+
+  // Validations
   if (!name?.trim()) throw new ApiError(400, "Room name is required");
   if (!startDate || !endDate)
     throw new ApiError(400, "Start and end date are required");
-
   if (new Date(startDate) >= new Date(endDate))
     throw new ApiError(400, "End date must be after start date");
-
   if (!["Normal", "Trip"].includes(roomtype))
     throw new ApiError(400, "roomtype must be Normal or Trip");
 
+  // Validate roomTags
+  if (!Array.isArray(roomTags)) roomTags = [];
+  roomTags = roomTags.filter((tag) => ROOM_TAGS.includes(tag));
+
+  // Community checks
   const community = await Community.findById(communityId);
   if (!community) throw new ApiError(404, "Community not found");
 
@@ -117,16 +125,15 @@ export const createRoom = asyncHandler(async (req, res) => {
   if (!community.settings?.allowMemberRooms && membership.role !== "admin")
     throw new ApiError(403, "Only admins can create rooms");
 
-  // Trip-only validation
+  // Trip validation
   if (roomtype === "Trip") {
     if (!tripType || !["national", "international"].includes(tripType))
       throw new ApiError(400, "tripType (national/international) is required");
-
     if (!location?.name)
       throw new ApiError(400, "location.name is required for trip");
   }
 
-  // Background image upload
+  // Upload background image
   const bgFile = req.files?.backgroundImage?.[0];
   if (!bgFile) throw new ApiError(400, "Room background image is required");
 
@@ -143,9 +150,7 @@ export const createRoom = asyncHandler(async (req, res) => {
     publicId: uploadedBg.public_id,
   };
 
-  // --------------------------------------------
-  // 🔥 OPTIMIZED MEMBER RESOLUTION (NO N+1 CALLS)
-  // --------------------------------------------
+  // Build members array
   const roomMembers = [{ user: userId, role: "owner", joinedAt: new Date() }];
 
   if (Array.isArray(initialMembers) && initialMembers.length > 0) {
@@ -165,9 +170,12 @@ export const createRoom = asyncHandler(async (req, res) => {
     }
   }
 
-  // --------------------------------------------
-  // ROOM CREATION
-  // --------------------------------------------
+  // Calculate initial status
+  const now = new Date();
+  const start = new Date(startDate);
+  let status = now >= start ? "active" : "upcoming";
+
+  // Create room
   const room = await Room.create({
     name: name.trim(),
     description: description.trim(),
@@ -177,17 +185,15 @@ export const createRoom = asyncHandler(async (req, res) => {
     members: roomMembers,
     startDate,
     endDate,
-    tags,
+    roomTags,
     isEphemeral,
     roomtype,
-    status: new Date(startDate) > new Date() ? "upcoming" : "active",
+    status,
   });
 
   let trip = null;
 
-  // --------------------------------------------
-  // TRIP CREATION (UNCHANGED)
-  // --------------------------------------------
+  // Create trip if Trip room
   if (roomtype === "Trip") {
     trip = await Trip.create({
       title: name,
@@ -216,26 +222,22 @@ export const createRoom = asyncHandler(async (req, res) => {
     await room.save();
   }
 
-  // --------------------------------------------
-  // 🔥 OPTIMIZED COMMUNITY UPDATE (ATOMIC)
-  // --------------------------------------------
+  // Update community
   await Community.updateOne(
     { _id: communityId },
     {
       $addToSet: { rooms: room._id },
-      $inc: { roomsLast7DaysCount: 1 }, // Performance counter
+      $inc: { roomsLast7DaysCount: 1 },
     }
   );
 
-  // Add room to users
+  // Update users
   await User.updateMany(
     { _id: { $in: roomMembers.map((m) => m.user) } },
     { $addToSet: { rooms: room._id } }
   );
 
-  // --------------------------------------------
-  // ACTIVITY LOG (UNCHANGED)
-  // --------------------------------------------
+  // Create activity
   const activity = await Activity.create({
     community: communityId,
     actor: userId,
@@ -243,15 +245,12 @@ export const createRoom = asyncHandler(async (req, res) => {
     payload: { roomId: room._id, tripId: trip?._id || null, name: room.name },
   });
 
-  // --------------------------------------------
-  // NOTIFICATIONS (UNCHANGED)
-  // --------------------------------------------
+  // Send notifications
   await Promise.allSettled(
     roomMembers
       .filter((m) => m.user.toString() !== userId.toString())
       .map(async (member) => {
         const memberId = member.user.toString();
-
         try {
           const notif = await sendNotification({
             recipient: memberId,
@@ -265,11 +264,9 @@ export const createRoom = asyncHandler(async (req, res) => {
             community: communityId,
             metadata: { roomId: room._id, communityId },
           });
-
           emitToUser(memberId, "notification:new", notif);
         } catch (err) {}
 
-        // Trip notification (unchanged)
         if (roomtype === "Trip" && trip) {
           try {
             const tripNotif = await sendNotification({
@@ -281,16 +278,13 @@ export const createRoom = asyncHandler(async (req, res) => {
               community: communityId,
               metadata: { tripId: trip._id, roomId: room._id },
             });
-
             emitToUser(memberId, "notification:new", tripNotif);
           } catch (err) {}
         }
       })
   );
 
-  // --------------------------------------------
-  // SOCKET BROADCAST (UNCHANGED)
-  // --------------------------------------------
+  // Socket broadcast
   try {
     const populatedRoom = await room.populate(
       "createdBy",
@@ -309,7 +303,7 @@ export const createRoom = asyncHandler(async (req, res) => {
       activity,
     });
   } catch (err) {
-    console.error("Emit error after room creation:", err);
+    console.error("Emit error:", err);
   }
 
   return res
@@ -319,15 +313,14 @@ export const createRoom = asyncHandler(async (req, res) => {
         201,
         { room, trip },
         roomtype === "Trip"
-          ? "Trip room and linked trip created successfully"
+          ? "Trip room created successfully"
           : "Room created successfully"
       )
     );
 });
 
-/* ===========================
-   GET COMMUNITY ROOMS
-   =========================== */
+//GET COMMUNITY ROOMS
+
 export const getCommunityRooms = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
@@ -752,4 +745,66 @@ export const deleteRoomMessage = asyncHandler(async (req, res) => {
   });
 
   return res.status(200).json(new ApiResponse(200, {}, "Message deleted"));
+});
+
+// ============================================
+// SEARCH ROOMS CONTROLLER
+// ============================================
+export const searchRooms = asyncHandler(async (req, res) => {
+  const { communityId } = req.params;
+  const { q, tag, status, roomtype, page = 1, limit = 20 } = req.query;
+
+  const skip = (page - 1) * limit;
+  const lim = parseInt(limit);
+
+  const query = { parentCommunity: communityId };
+
+  // Filter by roomTag
+  if (tag) {
+    query.roomTags = tag;
+  }
+
+  // Filter by status
+  if (
+    status &&
+    ["upcoming", "active", "finished", "cancelled"].includes(status)
+  ) {
+    query.status = status;
+  }
+
+  // Filter by roomtype
+  if (roomtype && ["Normal", "Trip"].includes(roomtype)) {
+    query.roomtype = roomtype;
+  }
+
+  // Text search
+  if (q?.trim()) {
+    query.$text = { $search: q.trim() };
+  }
+
+  const rooms = await Room.find(query)
+    .populate("createdBy", "username profilePicture")
+    .populate("linkedTrip", "title type location")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(lim)
+    .lean();
+
+  const total = await Room.countDocuments(query);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        rooms,
+        pagination: {
+          total,
+          page,
+          limit: lim,
+          totalPages: Math.ceil(total / lim),
+        },
+      },
+      "Rooms fetched successfully"
+    )
+  );
 });

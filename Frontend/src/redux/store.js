@@ -6,6 +6,7 @@ import postSlice from "./postSlice.js";
 import communitySlice from "./communitySlice.js";
 import chatbotSlice from "./chatbotSlice.js";
 import socketSlice from "./socketSlice.js";
+import roomSlice from "./roomSlice.js";
 
 const rootReducer = combineReducers({
   auth: authSlice,
@@ -13,12 +14,13 @@ const rootReducer = combineReducers({
   community: communitySlice,
   chatbot: chatbotSlice,
   socket: socketSlice,
+  room: roomSlice,
 });
 
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["auth"],
+  whitelist: ["auth", "community"], //isme jo bhi slices rehta hai wo refresh pe apna data loose nahi krta
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
