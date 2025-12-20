@@ -24,7 +24,7 @@ const roomSlice = createSlice({
     addRoomMessage: (state, action) => {
       const msg = action.payload;
       if (!state.roomMessages.some((m) => m._id === msg._id)) {
-        state.roomMessages.unshift(msg);
+        state.roomMessages.push(msg);
       }
     },
     updateRoomMessage: (state, action) => {
@@ -63,6 +63,12 @@ const roomSlice = createSlice({
       const roomId = action.payload;
       state.rooms = state.rooms.filter((r) => r._id !== roomId);
     },
+    clearRoomState: (state) => {
+      state.selectedRoom = null;
+      state.roomMessages = [];
+      state.loading = false;
+      state.error = null;
+    },
   },
 });
 
@@ -78,6 +84,7 @@ export const {
   addRoom,
   updateRoom,
   removeRoom,
+  clearRoomState,
 } = roomSlice.actions;
 
 export default roomSlice.reducer;

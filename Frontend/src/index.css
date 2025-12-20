@@ -1114,3 +1114,54 @@ body {
   background: rgba(0, 0, 0, 0.25);
   border-radius: 999px;
 }
+
+/* Room */
+.Room {
+  position: fixed;
+  inset: 60px 0 0 19vw;
+  /* display: flex;
+  flex-direction: column; */
+  height: calc(100vh - 60px);
+}
+
+.Room-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.Room-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: radial-gradient(
+      circle at bottom,
+      rgba(0, 0, 0, 0.6),
+      rgba(0, 0, 0, 0.9)
+    ),
+    url("/public/travel.jpg") center/cover no-repeat;
+}
+
+.RoomInput {
+  position: sticky;
+  bottom: 0;
+}
+
+.RoomHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.gif {
+  display: flex;
+  position: fixed;
+  justify-content: center;
+  align-items: center;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 999;
+  background-color: rgba(0, 0, 0, 0.25);
+}

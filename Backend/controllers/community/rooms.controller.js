@@ -610,7 +610,7 @@ export const sendRoomMessage = asyncHandler(async (req, res) => {
   await message.populate("sender", "username profilePicture");
 
   // Emit to room via wrapper
-  emitToRoom(roomId.toString(), "room:newMessage", message);
+  emitToRoom(roomId.toString(), "room:message:new", message);
 
   return res.status(201).json(new ApiResponse(201, message, "Message sent"));
 });
@@ -691,7 +691,7 @@ export const reactToRoomMessage = asyncHandler(async (req, res) => {
     );
   }
 
-  emitToRoom(message.room.toString(), "room:reactionUpdated", {
+  emitToRoom(message.room.toString(), "room:reaction:updated", {
     messageId,
     reactions: updated.reactions,
   });
@@ -741,7 +741,7 @@ export const deleteRoomMessage = asyncHandler(async (req, res) => {
 
   await MessageInRoom.findByIdAndDelete(messageId);
 
-  emitToRoom(message.room.toString(), "room:messageDeleted", {
+  emitToRoom(message.room.toString(), "room:message:deleted", {
     messageId,
     roomId: message.room.toString(),
   });

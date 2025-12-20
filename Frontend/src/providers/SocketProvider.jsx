@@ -187,19 +187,19 @@ const SocketProvider = ({ children }) => {
     // -----------------------
     // ROOM EVENTS
     // -----------------------
-    socket.on("room:newMessage", (msg) => {
-      // For simplicity, if the message belongs to the currently-open community, add to messages.
-      // Ideally you have a room slice; adapt as needed.
-      dispatch(addCommunityMessage(msg));
-    });
+    // socket.on("room:message:new", (msg) => {
+    //   // For simplicity, if the message belongs to the currently-open community, add to messages.
+    //   // Ideally you have a room slice; adapt as needed.
+    //   dispatch(addCommunityMessage(msg));
+    // });
 
-    socket.on("room:messageDeleted", ({ messageId }) => {
-      dispatch(removeCommunityMessage(messageId));
-    });
+    // socket.on("room:message:deleted", ({ messageId }) => {
+    //   dispatch(removeCommunityMessage(messageId));
+    // });
 
-    socket.on("room:reactionUpdated", ({ messageId, reactions }) => {
-      dispatch(updateCommunityMessage({ _id: messageId, reactions }));
-    });
+    // socket.on("room:reaction:updated", ({ messageId, reactions }) => {
+    //   dispatch(updateCommunityMessage({ _id: messageId, reactions }));
+    // });
 
     socket.on("room:userJoined", ({ roomId, user: joinedUser }) => {
       dispatch(
@@ -271,9 +271,9 @@ const SocketProvider = ({ children }) => {
       socket.off("community:created");
       socket.off("community:deleted");
 
-      socket.off("room:newMessage");
-      socket.off("room:messageDeleted");
-      socket.off("room:reactionUpdated");
+      // socket.off("room:message:new");
+      // socket.off("room:message:deleted");
+      // socket.off("room:reaction:updated");
       socket.off("room:userJoined");
       socket.off("room:created");
 

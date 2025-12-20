@@ -521,7 +521,12 @@ const CommunityPost = ({ post }) => {
                 React
               </button>
 
-              {showPicker && <EmojiPickerPopover onSelect={handleEmojiReact} />}
+              {showPicker && (
+                <EmojiPickerPopover
+                  onSelect={handleEmojiReact}
+                  onClose={() => setShowPicker(false)}
+                />
+              )}
             </div>
 
             {/* COMMENT ICON */}

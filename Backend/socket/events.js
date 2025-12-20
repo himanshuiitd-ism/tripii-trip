@@ -19,4 +19,13 @@ export const EVENTS = {
 
   POST_LIKED: "postLiked",
   COMMENT_ADDED: "commentAdded",
+
+  //Rooms
+  ROOM_JOIN: "room:join",
+  ROOM_LEAVE: "room:leave",
+
+  ROOM_MESSAGE_NEW: "room:message:new",
+  ROOM_MESSAGE_DELETED: "room:message:deleted",
+  ROOM_REACTION_UPDATED: "room:reaction:updated",
+  ROOM_USER_JOINED: "room:userJoined",
 };

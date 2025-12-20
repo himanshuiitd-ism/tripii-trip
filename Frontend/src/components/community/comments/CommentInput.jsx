@@ -175,6 +175,7 @@ const CommentInput = ({ messageId, userProfile }) => {
                 setText((t) => t + e);
                 setShowEmoji(false);
               }}
+              onClose={() => setShowEmoji(false)}
             />
           </div>
         )}

@@ -1,8 +1,28 @@
 import api from "./axios";
 
-//Rooms
 export const createRoom = (communityId, formData) =>
   api.post(`/api/community/createRoom/${communityId}`, formData, {
     withCredentials: true,
     headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const getRoomMessages = (roomId, params) =>
+  api.get(`/api/community/${roomId}/RoomMessage`, { params });
+
+export const sendRoomMessage = (roomId, data) =>
+  api.post(`/api/community/${roomId}/sendMessage`, data, {
+    withCredentials: true,
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const reactToRoomMessage = (messageId, emoji) =>
+  api.post(
+    `/api/community/${messageId}/react`,
+    { emoji },
+    { withCredentials: true }
+  );
+
+export const deleteRoomMessage = (messageId) =>
+  api.delete(`/api/community/${messageId}/deleteMessage`, {
+    withCredentials: true,
   });

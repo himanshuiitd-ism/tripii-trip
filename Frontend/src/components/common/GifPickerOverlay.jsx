@@ -51,7 +51,7 @@ export default function GifPickerOverlay({ onSelect, onClose }) {
   }, [query]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center">
+    <div className="gif">
       <div className="bg-white dark:bg-surface-dark w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl p-4">
         {/* HEADER */}
         <div className="flex gap-2 mb-2 overflow-x-auto">
