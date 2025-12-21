@@ -79,7 +79,30 @@ const roomSchema = new Schema(
       index: true,
     },
 
-    externalLink: { label: String, url: String },
+    // External links attached to a room (drive, docs, map, etc.)
+    externalLinks: [
+      {
+        name: {
+          type: String,
+          required: true, // e.g. "Itinerary", "Google Drive", "Bookings"
+          trim: true,
+        },
+        url: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        addedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        addedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

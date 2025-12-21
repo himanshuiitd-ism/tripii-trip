@@ -6,8 +6,10 @@ export default function TripInfoCard({ room }) {
 
   if (room.roomtype !== "Trip") return null;
 
+  console.log("Room:", room);
+
   return (
-    <div className="rounded-xl overflow-hidden shadow">
+    <div className="rounded-xl overflow-hidden ">
       <div
         className="h-32 bg-cover bg-center"
         style={{ backgroundImage: `url(${room.roombackgroundImage?.url})` }}

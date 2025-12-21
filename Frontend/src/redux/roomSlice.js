@@ -3,6 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialState = {
   rooms: [],
   selectedRoom: null,
+  selectedRoomData: null,
   roomMessages: [],
   loading: false,
   error: null,
@@ -18,6 +19,10 @@ const roomSlice = createSlice({
     setSelectedRoom: (state, action) => {
       state.selectedRoom = action.payload;
     },
+    setSelectedRoomData: (state, action) => {
+      state.selectedRoomData = action.payload;
+    },
+
     setRoomMessages: (state, action) => {
       state.roomMessages = Array.isArray(action.payload) ? action.payload : [];
     },
@@ -75,6 +80,7 @@ const roomSlice = createSlice({
 export const {
   setRooms,
   setSelectedRoom,
+  setSelectedRoomData,
   setRoomMessages,
   addRoomMessage,
   updateRoomMessage,

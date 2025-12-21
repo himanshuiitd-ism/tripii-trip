@@ -12,14 +12,19 @@ import RoomInput from "./components/RoomInput";
 import RoomMembers from "./components/RoomMembers";
 import TripInfoCard from "./components/TripInfoCard";
 import RoomHeader from "./components/RoomHeader";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { clearRoomState, setSelectedRoom } from "@/redux/roomSlice";
 import React from "react";
+import RoomRightSidebar from "./components/RoomRightSidebar";
+import RoomSetting from "./components/RoomSetting";
 
 const Room = () => {
   const { roomId } = useParams();
   const dispatch = useDispatch();
   const room = useRoomData(roomId);
+  const [setting, setSetting] = useState(false);
+
+  console.log("Room:", room);
 
   useEffect(() => {
     // 🔥 CLEAR OLD ROOM DATA
@@ -46,10 +51,25 @@ const Room = () => {
   return (
     <div className="Room">
       {/* FIXED HEADER */}
-      <RoomHeader room={room} />
+      <RoomHeader room={room} setSetting={setSetting} />
 
       {/* BODY */}
-      <div className="Room-body">
+      <div
+        className="Room-body"
+        style={{
+          backgroundImage: `
+      radial-gradient(
+        circle at bottom,
+        rgba(0, 0, 0, 0.6),
+        rgba(0, 0, 0, 0.9)
+      ),
+      url(${room?.roombackgroundImage?.url})
+    `,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
         {/* CHAT */}
         <div className="Room-chat">
           <RoomChat />
@@ -60,10 +80,8 @@ const Room = () => {
       </div>
 
       {/* RIGHT SIDEBAR */}
-      <div className="Room-sidebar">
-        <TripInfoCard room={room} />
-        <RoomMembers members={room.members} />
-      </div>
+      <RoomRightSidebar room={room} />
+      {setting && <RoomSetting setting={setting} setSetting={setSetting} />}
     </div>
   );
 };

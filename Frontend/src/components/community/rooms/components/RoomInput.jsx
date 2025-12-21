@@ -26,7 +26,7 @@ export default function RoomInput({ onSend, sending }) {
   };
 
   return (
-    <div className="p-4 pb-8 mb-4 bg-white/80 backdrop-blur-md">
+    <div className="p-2 pb-8 mb-5">
       {/* MEDIA PREVIEW */}
       {(preview || gifUrl) && (
         <div className="mb-2 relative w-fit">

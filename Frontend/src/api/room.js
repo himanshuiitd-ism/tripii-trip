@@ -26,3 +26,13 @@ export const deleteRoomMessage = (messageId) =>
   api.delete(`/api/community/${messageId}/deleteMessage`, {
     withCredentials: true,
   });
+
+export const updateRoom = (roomId, payload) =>
+  api.patch(`/api/community/updateRoom/${roomId}`, payload, {
+    withCredentials: true,
+  });
+
+export const getRoomDetails = (roomId) =>
+  api.get(`/api/community/room/${roomId}`, {
+    withCredentials: true,
+  });
