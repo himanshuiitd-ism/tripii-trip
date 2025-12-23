@@ -53,12 +53,14 @@ import {
   getCommunityRooms,
   getMyCommunityRooms,
   getMyRoomsAcrossCommunities,
+  getRoomDetails,
   getRoomMessages,
   getSuggestedRooms,
   joinRoom,
   leaveRoom,
   reactToRoomMessage,
   sendRoomMessage,
+  updateRoomSettings,
 } from "../controllers/community/rooms.controller.js";
 import { markAllAsSeen } from "../controllers/user/notification.controller.js";
 
@@ -158,9 +160,15 @@ router.get("/allMyRooms", getMyRoomsAcrossCommunities);
 router.get("/suggestedRoom", getSuggestedRooms);
 router.post("/joinRoom/:roomId", joinRoom);
 router.post("/leaveRoom/:roomId", leaveRoom);
-router.post("/:roomId/sendMessage", sendRoomMessage);
+router.post(
+  "/:roomId/sendMessage",
+  upload.fields([{ name: "media", maxCount: 1 }]),
+  sendRoomMessage
+);
 router.get("/:roomId/RoomMessage", getRoomMessages);
 router.post("/:messageId/react", reactToRoomMessage);
 router.delete("/:messageId/deleteMessage", deleteRoomMessage);
+router.patch("/updateRoom/:roomId", updateRoomSettings);
+router.get("/room/:roomId", getRoomDetails);
 
 export default router;

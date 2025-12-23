@@ -121,4 +121,17 @@ export default function communitySocket(io, socket, communityRooms, typingMap) {
       socket.emit("sync:error", { message: "Sync failed" });
     }
   });
+
+  // ---------------- ROOM SOCKETS ----------------
+  socket.on(EVENTS.ROOM_JOIN, (roomId) => {
+    if (!roomId) return;
+    socket.join(`room:${roomId}`);
+    console.log(`🏠 User ${userId} joined room ${roomId}`);
+  });
+
+  socket.on(EVENTS.ROOM_LEAVE, (roomId) => {
+    if (!roomId) return;
+    socket.leave(`room:${roomId}`);
+    console.log(`🚪 User ${userId} left room ${roomId}`);
+  });
 }

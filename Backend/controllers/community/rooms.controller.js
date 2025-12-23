@@ -215,12 +215,7 @@ export const createRoom = asyncHandler(async (req, res) => {
     });
 
     room.linkedTrip = trip._id;
-    room.externalLink = {
-      label: "Open Trip",
-      url: `${process.env.FRONTEND_URL?.replace(/\/$/, "") || ""}/trip/${
-        trip._id
-      }`,
-    };
+
     await room.save();
   }
 
@@ -505,8 +500,13 @@ export const joinRoom = asyncHandler(async (req, res) => {
 
   // Emit to room
   emitToRoom(roomId.toString(), "room:userJoined", {
-    roomId,
-    user: userData,
+    roomId: room._id,
+    user: {
+      _id: userData._id,
+      username: userData.username,
+      profilePicture: userData.profilePicture.url,
+    },
+    role: "member",
     joinedAt: new Date(),
   });
 
@@ -548,10 +548,7 @@ export const leaveRoom = asyncHandler(async (req, res) => {
   if (memberIndex === -1) throw new ApiError(404, "You are not a member");
 
   if (room.members[memberIndex].role === "owner") {
-    throw new ApiError(
-      400,
-      "Owner cannot leave. Transfer ownership or delete room"
-    );
+    throw new ApiError(400, "Owner cannot leave.");
   }
 
   room.members.splice(memberIndex, 1);
@@ -575,16 +572,26 @@ export const sendRoomMessage = asyncHandler(async (req, res) => {
   const { content = "", gifUrl } = req.body;
   const file = req.files?.media?.[0];
 
-  const room = await Room.findById(roomId).select("members parentCommunity");
+  const room = await Room.findById(roomId).select(
+    "members parentCommunity status"
+  );
   if (!room) throw new ApiError(404, "Room not found");
 
   const isMember = room.members.some(
     (m) => m.user.toString() === userId.toString()
   );
-  if (!isMember) throw new ApiError(403, "Only room members can send messages");
+  if (!isMember) {
+    throw new ApiError(403, "Only room members can send messages");
+  }
 
-  if (!content && !gifUrl && !file)
+  /* ---------------- STATUS GUARD ---------------- */
+  if (["finished", "cancelled"].includes(room.status)) {
+    throw new ApiError(403, `Messages are disabled for ${room.status} rooms`);
+  }
+
+  if (!content && !gifUrl && !file) {
     throw new ApiError(400, "Message must contain text, media, or GIF");
+  }
 
   const messageData = {
     room: roomId,
@@ -609,8 +616,7 @@ export const sendRoomMessage = asyncHandler(async (req, res) => {
   const message = await MessageInRoom.create(messageData);
   await message.populate("sender", "username profilePicture");
 
-  // Emit to room via wrapper
-  emitToRoom(roomId.toString(), "room:newMessage", message);
+  emitToRoom(roomId.toString(), "room:message:new", message);
 
   return res.status(201).json(new ApiResponse(201, message, "Message sent"));
 });
@@ -691,7 +697,7 @@ export const reactToRoomMessage = asyncHandler(async (req, res) => {
     );
   }
 
-  emitToRoom(message.room.toString(), "room:reactionUpdated", {
+  emitToRoom(message.room.toString(), "room:reaction:updated", {
     messageId,
     reactions: updated.reactions,
   });
@@ -741,7 +747,7 @@ export const deleteRoomMessage = asyncHandler(async (req, res) => {
 
   await MessageInRoom.findByIdAndDelete(messageId);
 
-  emitToRoom(message.room.toString(), "room:messageDeleted", {
+  emitToRoom(message.room.toString(), "room:message:deleted", {
     messageId,
     roomId: message.room.toString(),
   });
@@ -809,4 +815,224 @@ export const searchRooms = asyncHandler(async (req, res) => {
       "Rooms fetched successfully"
     )
   );
+});
+
+const canManageRoom = (member) =>
+  member && ["owner", "moderator"].includes(member.role);
+
+export const updateRoomSettings = asyncHandler(async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user._id;
+
+  const {
+    addMembers,
+    removeMembers,
+    changeRoles,
+    addExternalLinks,
+    removeExternalLinks,
+  } = req.body;
+
+  const room = await Room.findById(roomId);
+  if (!room) throw new ApiError(404, "Room not found");
+
+  const myMembership = room.members.find(
+    (m) => m.user.toString() === userId.toString()
+  );
+
+  const myRole = myMembership.role; // owner | moderator
+
+  if (!canManageRoom(myMembership)) {
+    throw new ApiError(403, "You are not allowed to manage this room");
+  }
+
+  /* ---------------- ADD MEMBERS ---------------- */
+  if (Array.isArray(addMembers)) {
+    const existing = new Set(room.members.map((m) => m.user.toString()));
+
+    for (const uid of addMembers) {
+      if (!mongoose.Types.ObjectId.isValid(uid)) continue;
+
+      const user = await User.findById(uid).select("_id rooms");
+      if (!user) continue;
+
+      const exists = await User.exists({ _id: uid });
+      if (!exists) continue; // 🚨 prevents corruption
+
+      if (!existing.has(uid)) {
+        room.members.push({
+          user: uid,
+          role: "member",
+          joinedAt: new Date(),
+        });
+
+        if (!user.rooms.includes(room._id)) {
+          user.rooms.push(room._id);
+          await user.save({ validateBeforeSave: false });
+        }
+      }
+    }
+  }
+
+  /* ---------------- REMOVE MEMBERS ---------------- */
+  if (Array.isArray(removeMembers)) {
+    const removedUserIds = [];
+
+    room.members = room.members.filter((m) => {
+      const targetUserId = m.user.toString();
+
+      // Owner can never be removed
+      if (m.role === "owner") return true;
+
+      // Not selected for removal
+      if (!removeMembers.includes(targetUserId)) return true;
+
+      // ===============================
+      // PERMISSION RULES
+      // ===============================
+
+      // 🔒 Moderator restrictions
+      if (myMembership.role === "moderator") {
+        // ❌ moderator cannot remove themselves
+        if (targetUserId === userId.toString()) return true;
+
+        // ❌ moderator cannot remove other moderators
+        if (m.role === "moderator") return true;
+
+        // ❌ moderator cannot remove owner (already covered, but explicit)
+        if (m.role === "owner") return true;
+      }
+
+      // 🔒 Owner restriction
+      if (myMembership.role === "owner") {
+        // ❌ owner cannot remove themselves
+        if (targetUserId === userId.toString()) return true;
+      }
+
+      // ===============================
+      // ALLOWED → REMOVE
+      // ===============================
+      removedUserIds.push(targetUserId);
+      return false;
+    });
+
+    // ✅ sync reverse relation
+    if (removedUserIds.length) {
+      await User.updateMany(
+        { _id: { $in: removedUserIds } },
+        { $pull: { rooms: room._id } }
+      );
+    }
+  }
+
+  /* ---------------- CHANGE ROLES ---------------- */
+  if (Array.isArray(changeRoles)) {
+    changeRoles.forEach(({ userId: targetUserId, role }) => {
+      const member = room.members.find(
+        (m) => m.user.toString() === targetUserId
+      );
+
+      if (!member) return;
+
+      // Owner role is immutable
+      if (member.role === "owner") return;
+
+      // Moderator cannot change roles at all
+      if (myRole === "moderator") return;
+
+      // Owner can change member <-> moderator
+      member.role = role;
+    });
+  }
+
+  /* ---------------- ADD / UPDATE EXTERNAL LINKS ---------------- */
+  if (Array.isArray(addExternalLinks)) {
+    addExternalLinks.forEach(({ name, url }) => {
+      const existing = room.externalLinks.find((l) => l.name === name);
+
+      if (existing) {
+        existing.url = url;
+        existing.addedBy = userId;
+        existing.addedAt = new Date();
+      } else {
+        room.externalLinks.push({
+          name,
+          url,
+          addedBy: userId,
+          addedAt: new Date(),
+        });
+      }
+    });
+  }
+
+  /* ---------------- REMOVE EXTERNAL LINKS ---------------- */
+  if (Array.isArray(removeExternalLinks)) {
+    room.externalLinks = room.externalLinks.filter(
+      (l) => !removeExternalLinks.includes(l.name)
+    );
+  }
+
+  await room.save();
+  // populate members & creator to match getRoomDetails
+  const populatedRoom = await Room.findById(room._id)
+    .populate("createdBy", "username profilePicture.url")
+    .populate("members.user", "username profilePicture.url")
+    .lean();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, populatedRoom, "Room updated successfully"));
+});
+
+// helper function for grtting room status
+const computeRoomStatus = (room) => {
+  if (!room.startDate || !room.endDate) return room.status;
+
+  const now = new Date();
+  const start = new Date(room.startDate);
+  const end = new Date(room.endDate);
+
+  if (room.status === "cancelled") return "cancelled";
+
+  if (now < start) return "upcoming";
+  if (now >= start && now <= end) return "active";
+  if (now > end) return "finished";
+
+  return room.status;
+};
+
+export const getRoomDetails = asyncHandler(async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user._id;
+
+  let room = await Room.findById(roomId)
+    .populate("createdBy", "username profilePicture.url")
+    .populate("members.user", "username profilePicture.url");
+
+  if (!room) {
+    throw new ApiError(404, "Room not found");
+  }
+
+  // ensure user is a member
+  const isMember = room.members.some(
+    (m) => m.user?._id.toString() === userId.toString()
+  );
+
+  if (!isMember) {
+    throw new ApiError(403, "You are not a member of this room");
+  }
+
+  /* ---------------- AUTO STATUS SYNC ---------------- */
+  const expectedStatus = computeRoomStatus(room);
+
+  if (expectedStatus !== room.status) {
+    room.status = expectedStatus;
+    await room.save();
+  }
+
+  // convert to plain object AFTER save
+  room = room.toObject();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, room, "Room details fetched"));
 });

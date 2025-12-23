@@ -3,6 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 const initialState = {
   rooms: [],
   selectedRoom: null,
+  selectedRoomData: null,
   roomMessages: [],
   loading: false,
   error: null,
@@ -18,13 +19,17 @@ const roomSlice = createSlice({
     setSelectedRoom: (state, action) => {
       state.selectedRoom = action.payload;
     },
+    setSelectedRoomData: (state, action) => {
+      state.selectedRoomData = action.payload;
+    },
+
     setRoomMessages: (state, action) => {
       state.roomMessages = Array.isArray(action.payload) ? action.payload : [];
     },
     addRoomMessage: (state, action) => {
       const msg = action.payload;
       if (!state.roomMessages.some((m) => m._id === msg._id)) {
-        state.roomMessages.unshift(msg);
+        state.roomMessages.push(msg);
       }
     },
     updateRoomMessage: (state, action) => {
@@ -59,9 +64,32 @@ const roomSlice = createSlice({
         state.rooms[idx] = { ...state.rooms[idx], ...updated };
       }
     },
+    updateRoomMembers(state, action) {
+      const { user, role, joinedAt } = action.payload;
+
+      if (!state.selectedRoomData) return;
+
+      const exists = state.selectedRoomData.members?.some(
+        (m) => m.user?._id === user._id
+      );
+
+      if (!exists) {
+        state.selectedRoomData.members.push({
+          user,
+          role,
+          joinedAt,
+        });
+      }
+    },
     removeRoom: (state, action) => {
       const roomId = action.payload;
       state.rooms = state.rooms.filter((r) => r._id !== roomId);
+    },
+    clearRoomState: (state) => {
+      state.selectedRoom = null;
+      state.roomMessages = [];
+      state.loading = false;
+      state.error = null;
     },
   },
 });
@@ -69,6 +97,7 @@ const roomSlice = createSlice({
 export const {
   setRooms,
   setSelectedRoom,
+  setSelectedRoomData,
   setRoomMessages,
   addRoomMessage,
   updateRoomMessage,
@@ -78,6 +107,8 @@ export const {
   addRoom,
   updateRoom,
   removeRoom,
+  clearRoomState,
+  updateRoomMembers,
 } = roomSlice.actions;
 
 export default roomSlice.reducer;

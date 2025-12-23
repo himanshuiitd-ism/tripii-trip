@@ -200,7 +200,10 @@ const CommentItem = ({
 
             {showReactionPicker && (
               <div className="absolute z-10 mt-2">
-                <EmojiPickerPopover onSelect={(emoji) => handleReact(emoji)} />
+                <EmojiPickerPopover
+                  onSelect={(emoji) => handleReact(emoji)}
+                  onClose={() => setShowReactionPicker(false)}
+                />
               </div>
             )}
           </div>
@@ -325,6 +328,7 @@ const CommentItem = ({
                       setReplyText((t) => t + e);
                       setShowEmojiPicker(false);
                     }}
+                    onClose={() => setShowEmojiPicker(false)}
                   />
                 </div>
               )}
