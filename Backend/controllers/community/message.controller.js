@@ -367,84 +367,75 @@ export const toggleMessageHelpful = asyncHandler(async (req, res) => {
   const message = await MessageInComm.findById(messageId).populate("sender");
   if (!message) throw new ApiError(404, "Message not found");
 
-  const exists = message.helpful.some(
+  const alreadyHelpful = message.helpful.some(
     (h) => h.user.toString() === userId.toString()
   );
 
-  console.log(`🔄 Toggle helpful for message ${messageId} by user ${userId}`);
-  console.log(`   Current state: ${exists ? "removing" : "adding"}`);
-  console.log(`   Message author: ${message.sender._id}`);
-
-  if (exists) {
-    // ========== REMOVING HELPFUL ==========
+  if (alreadyHelpful) {
+    // ========== REMOVE HELPFUL ==========
     message.helpful = message.helpful.filter(
       (h) => h.user.toString() !== userId.toString()
     );
-    message.helpfulCount = Math.max(0, message.helpfulCount - 1); // 🔥 Prevent negative
 
-    // Only rollback if the user is NOT the message author (can't earn points from self)
+    // rollback points ONLY if not self
     if (message.sender._id.toString() !== userId.toString()) {
-      console.log(`   ⏪ Rolling back points for author ${message.sender._id}`);
-
-      // 🔥 Use specific rollback with actorId to only remove THIS user's helpful action
       await rollbackPointsForModel(
         "MessageInComm",
         messageId,
         userId,
         "message_helpful_received"
       );
-    } else {
-      console.log(`   ⏭️ Skipping rollback (user is author)`);
     }
   } else {
-    // ========== ADDING HELPFUL ==========
+    // ========== ADD HELPFUL ==========
     message.helpful.push({ user: userId });
-    message.helpfulCount++;
 
-    // Only award if the user is NOT the message author
+    // award points ONLY if not self
     if (message.sender._id.toString() !== userId.toString()) {
-      console.log(`   ⏩ Awarding points to author ${message.sender._id}`);
-
       await awardPoints(message.sender._id, "message_helpful_received", {
         model: "MessageInComm",
         modelId: messageId,
         actorId: userId,
       });
 
-      // Send notification
       const notif = await sendNotification({
         recipient: message.sender._id,
         sender: userId,
         type: "community_message_upvote",
         message: `${req.user.username} marked your message as helpful`,
         community: message.community,
-        metadata: {
-          messageId,
-        },
+        metadata: { messageId },
       });
 
       emitToUser(message.sender._id, "notification", notif);
-    } else {
-      console.log(`   ⏭️ Skipping award (user is author)`);
     }
   }
 
+  // 🔥 SINGLE SOURCE OF TRUTH
+  message.helpfulCount = message.helpful.length;
+
   await message.save();
 
-  // Emit socket event to update count in real-time
+  // ✅ EMIT FULL STATE REQUIRED BY FRONTEND
   emitToCommunity(message.community.toString(), "community:message:helpful", {
     messageId,
-    helpfulCount: message.helpfulCount,
+    helpful: message.helpful.map((h) => h.user.toString()),
+    helpfulCount: message.helpful.length,
   });
 
-  console.log(`✅ Helpful toggled. New count: ${message.helpfulCount}`);
+  const updatedMessage = await MessageInComm.findById(message._id).populate(
+    "sender",
+    "username profilePicture.url"
+  );
 
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        helpful: !exists,
-        helpfulCount: message.helpfulCount,
+        isHelpful: !alreadyHelpful,
+        helpful: message.helpful.map((h) => h.user.toString()),
+        helpfulCount: message.helpful.length,
+        messages: updatedMessage,
       },
       "Helpful updated"
     )
@@ -654,7 +645,28 @@ export const deleteMessage = asyncHandler(async (req, res) => {
   const isAdmin = membership.role === "admin";
   const isModerator = membership.role === "moderator";
 
-  if (!isSender && !isAdmin && !isModerator) {
+  // 🔥 Fetch sender's membership to check role
+  const senderMembership = await CommunityMembership.findOne({
+    community: message.community,
+    user: message.sender,
+  }).select("role");
+
+  const senderIsAdmin = senderMembership?.role === "admin";
+
+  /**
+   * PERMISSION MATRIX
+   * --------------------------------------------------
+   * Admin       → delete anyone
+   * Moderator   → delete anyone EXCEPT admin
+   * Member      → delete only own message
+   */
+  if (
+    !isSender &&
+    !isAdmin &&
+    !(
+      (isModerator && !senderIsAdmin) // 🚫 moderator cannot delete admin messages
+    )
+  ) {
     throw new ApiError(403, "You are not allowed to delete this message");
   }
 
@@ -909,7 +921,12 @@ export const togglePinMessage = asyncHandler(async (req, res) => {
 
   emitToCommunity(message.community.toString(), "community:message:pinned", {
     messageId,
-    pinnedBy: user.username,
+    pinnedBy: {
+      _id: user._id,
+      username: user.username,
+      profilePicture: user.profilePicture?.url || null,
+    },
+    pinnedAt: new Date().toISOString(),
   });
 
   return res.status(200).json(new ApiResponse(200, {}, "Message pinned"));
@@ -1120,30 +1137,4 @@ export const getPinnedMessage = asyncHandler(async (req, res) => {
         "Pinned message fetched"
       )
     );
-});
-
-export const getMyHelpfulMessages = asyncHandler(async (req, res) => {
-  const { communityId } = req.params;
-  const userId = req.user._id;
-
-  const member = await CommunityMembership.findOne({
-    community: communityId,
-    user: userId,
-  });
-
-  if (!member) {
-    throw new ApiError(403, "Not a community member");
-  }
-
-  const messages = await MessageInComm.find({
-    community: communityId,
-    "helpful.user": userId,
-  })
-    .sort({ createdAt: -1 }) // newest helpful first
-    .populate("sender", "username profilePicture")
-    .lean();
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, { messages }, "Helpful messages fetched"));
 });

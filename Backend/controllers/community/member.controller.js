@@ -153,11 +153,12 @@ export const addMembers = asyncHandler(async (req, res) => {
     if (!adderMembership)
       throw new ApiError(403, "You must be a member to add others");
 
-    const allowAdd =
-      community.settings?.allowMembersToAdd === true ||
-      adderMembership.role === "admin";
-
-    if (!allowAdd) throw new ApiError(403, "Only admins can add members");
+    if (
+      adderMembership.role === "member" &&
+      community.settings?.allowMembersToAdd === false
+    ) {
+      throw new ApiError(403, "Members are not allowed to add others");
+    }
 
     members = [...new Set(members.map(String))].slice(0, 200);
 
@@ -256,8 +257,7 @@ export const addMembers = asyncHandler(async (req, res) => {
 
     // 🔔 realtime community update
     emitToCommunity(communityId.toString(), "member:bulk_added", {
-      count: createdMemberships.length,
-      members: users,
+      members: createdMemberships, // ✅ NOT users
       memberCount: updatedCommunity.memberCount,
     });
 
@@ -287,17 +287,34 @@ export const removeMember = asyncHandler(async (req, res) => {
 
   if (!targetUserId) throw new ApiError(400, "targetUserId required");
 
-  const adminMembership = await CommunityMembership.findOne({
+  const actorMembership = await CommunityMembership.findOne({
     community: communityId,
     user: adminId,
-    role: "admin",
   });
 
-  if (!adminMembership)
-    throw new ApiError(403, "Only admins can remove members");
+  if (!actorMembership) throw new ApiError(403, "Not a community member");
+
+  const targetMembership = await CommunityMembership.findOne({
+    community: communityId,
+    user: targetUserId,
+  });
+
+  if (!targetMembership) throw new ApiError(404, "Member not found");
 
   if (adminId.toString() === targetUserId.toString())
     throw new ApiError(400, "You cannot remove yourself");
+
+  // permission rules
+  if (actorMembership.role === "member") {
+    throw new ApiError(403, "Not authorized");
+  }
+
+  if (
+    actorMembership.role === "moderator" &&
+    targetMembership.role !== "member"
+  ) {
+    throw new ApiError(403, "Moderators can only remove members");
+  }
 
   // Delete membership
   const deleted = await CommunityMembership.findOneAndDelete({
@@ -326,7 +343,7 @@ export const removeMember = asyncHandler(async (req, res) => {
     community: communityId,
     actor: adminId,
     type: "member_removed",
-    payload: { removedUser: targetUserId },
+    payload: { removedUser: targetMembership?.displayName },
   });
 
   // Notify
@@ -413,62 +430,85 @@ export const leaveCommunity = asyncHandler(async (req, res) => {
  */
 export const changeMemberRole = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
-  const { role, targetUserId } = req.body; // "admin" | "member"
+  const { role, targetUserId } = req.body;
   const adminId = req.user._id;
 
-  if (!["admin", "member"].includes(role))
-    throw new ApiError(400, "Invalid role. Must be 'admin' or 'member'");
+  if (!["moderator", "member"].includes(role)) {
+    throw new ApiError(400, "Role must be 'moderator' or 'member'");
+  }
 
   const adminMembership = await CommunityMembership.findOne({
     community: communityId,
     user: adminId,
     role: "admin",
   });
-  if (!adminMembership) throw new ApiError(403, "Only admins can change roles");
+  if (!adminMembership) {
+    throw new ApiError(403, "Only admins can change roles");
+  }
 
-  if (adminId.toString() === targetUserId)
+  if (adminId.toString() === targetUserId) {
     throw new ApiError(400, "You cannot change your own role");
+  }
 
-  const membership = await CommunityMembership.findOneAndUpdate(
-    { community: communityId, user: targetUserId },
-    { role },
-    { new: true }
-  ).populate("user", "username profilePicture");
+  // 🔥 Fetch first to get old role
+  const existingMembership = await CommunityMembership.findOne({
+    community: communityId,
+    user: targetUserId,
+  }).populate("user", "username profilePicture");
 
-  if (!membership) throw new ApiError(404, "Member not found");
+  if (!existingMembership) {
+    throw new ApiError(404, "Member not found");
+  }
 
+  const oldRole = existingMembership.role;
+
+  // 🔥 Update role
+  existingMembership.role = role;
+  await existingMembership.save();
+
+  // 🔥 Activity with rich payload
   await Activity.create({
     community: communityId,
     actor: adminId,
     type: "role_changed",
     payload: {
-      targetUser: targetUserId,
-      newRole: role,
       action: "role_changed",
+      targetUser: {
+        _id: existingMembership.user._id,
+        username: existingMembership.user.username,
+      },
+      oldRole,
+      newRole: role,
     },
   });
 
-  // notify the user about role change
+  // 🔔 Notify user
   try {
     const community = await Community.findById(communityId).select("name");
+
     const notification = await sendNotification({
       recipient: targetUserId,
       sender: adminId,
       type: "role_changed",
-      message: `Your role in "${community.name}" was changed to ${role}`,
+      message: `Your role in "${community.name}" was changed from ${oldRole} to ${role}`,
       community: communityId,
-      metadata: { communityId, newRole: role },
+      metadata: { communityId, oldRole, newRole: role },
     });
 
     emitToUser(targetUserId.toString(), "notification:new", notification);
-    emitToUser(targetUserId.toString(), "role:updated", { communityId, role });
+    emitToUser(targetUserId.toString(), "role:updated", {
+      communityId,
+      role,
+    });
   } catch (err) {
     console.error("Failed to notify role change:", err);
   }
 
   return res
     .status(200)
-    .json(new ApiResponse(200, membership, "Role updated successfully"));
+    .json(
+      new ApiResponse(200, existingMembership, "Role updated successfully")
+    );
 });
 
 /**

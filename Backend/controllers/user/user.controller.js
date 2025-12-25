@@ -241,7 +241,10 @@ export const followOrUnfollow = asyncHandler(async (req, res) => {
   ----------------------------------------------------------- */
   emitToUser(targetId, "notification", notification);
 
-  const updatedUser = await User.findById(req.user._id);
+  const updatedUser = await User.findById(req.user._id)
+    .select("-password -refreshToken")
+    .populate("following", "username profilePicture.url")
+    .populate("followers", "username profilePicture.url");
 
   return res
     .status(200)
@@ -428,6 +431,10 @@ export const getCurrentUser = asyncHandler(async (req, res) => {
     .select("-password -refreshToken")
     .populate({
       path: "following",
+      select: "username profilePicture.url",
+    })
+    .populate({
+      path: "followers",
       select: "username profilePicture.url",
     });
 

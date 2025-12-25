@@ -32,7 +32,16 @@ const CommunityPost = ({ post }) => {
   /* ---------------------------
      LOCAL STATE (OPTIMISTIC UI ONLY)
   ---------------------------- */
-  const [isHelpful, setIsHelpful] = useState(false);
+  const isHelpful = useMemo(() => {
+    if (!user?._id || !Array.isArray(latestPost.helpful)) return false;
+
+    return latestPost.helpful.some((h) =>
+      typeof h === "string"
+        ? h === user._id
+        : h?.user?.toString() === user._id.toString()
+    );
+  }, [latestPost.helpful, user?._id]);
+
   const [showPicker, setShowPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,10 +53,6 @@ const CommunityPost = ({ post }) => {
   /* ---------------------------
      SYNC HELPFUL STATE
   ---------------------------- */
-  useEffect(() => {
-    const helpful = latestPost.helpful?.some((h) => h.user === user?._id);
-    setIsHelpful(Boolean(helpful));
-  }, [latestPost.helpful, user?._id]);
 
   /* ---------------------------
      CLOSE MENU ON OUTSIDE CLICK
@@ -95,11 +100,9 @@ const CommunityPost = ({ post }) => {
   ---------------------------- */
   const isOwner = latestPost.sender?._id === user?._id;
 
-  const isModerator = selectedCommunity?.moderators?.some(
-    (mod) => mod === user?._id || mod?._id === user?._id
-  );
+  const isModerator = selectedCommunity?.currentUserRole === "moderator";
 
-  const isAdmin = selectedCommunity?.createdBy?._id === user?._id;
+  const isAdmin = selectedCommunity?.currentUserRole === "admin";
 
   const canDelete = isOwner || isModerator || isAdmin;
   const canPin = isModerator || isAdmin;
@@ -192,14 +195,10 @@ const CommunityPost = ({ post }) => {
   const toggleHelpful = async () => {
     if (loading) return;
 
-    const next = !isHelpful;
-    setIsHelpful(next);
     setLoading(true);
-
     try {
       await messageHelpful(latestPost._id);
     } catch (err) {
-      setIsHelpful(!next);
       console.error("Helpful error:", err);
     } finally {
       setLoading(false);
@@ -551,16 +550,16 @@ const CommunityPost = ({ post }) => {
             </div>
 
             {/* COMMENT ICON */}
-            <div className="flex items-center gap-1 text-xs text-text-muted-light cursor-pointer hover:text-primary">
-              <span
-                className="material-symbols-outlined !text-[18px]"
-                onClick={() => {
-                  dispatch(setSelectedMessage(latestPost));
-                  navigate(
-                    `/community/${latestPost.community}/message/${latestPost._id}/comments`
-                  );
-                }}
-              >
+            <div
+              className="flex items-center gap-1 text-xs text-text-muted-light cursor-pointer hover:text-primary"
+              onClick={() => {
+                dispatch(setSelectedMessage(latestPost));
+                navigate(
+                  `/community/${latestPost.community}/message/${latestPost._id}/comments`
+                );
+              }}
+            >
+              <span className="material-symbols-outlined !text-[18px]">
                 mode_comment
               </span>
               <span className="font-bold">{latestPost.commentCount || 0}</span>

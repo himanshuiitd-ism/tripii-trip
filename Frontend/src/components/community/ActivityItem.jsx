@@ -2,10 +2,16 @@ import { ACTIVITY_CONFIG } from "../common/activityConfig";
 
 const ActivityItem = ({ a, isLast }) => {
   const cfg = ACTIVITY_CONFIG[a.type] || {
-    label: a.type,
     emoji: "❓",
     color: "bg-gray-400",
+    getLabel: () => a.type,
   };
+
+  const label =
+    typeof cfg.getLabel === "function" ? cfg.getLabel(a) : cfg.label;
+
+  const description =
+    typeof cfg.getDescription === "function" ? cfg.getDescription(a) : null;
 
   const formatDateTime = (dateStr) => {
     const d = new Date(dateStr);
@@ -40,9 +46,14 @@ const ActivityItem = ({ a, isLast }) => {
       </div>
 
       {/* CONTENT */}
-      <div className="flex flex-col pb-1">
-        <p className="text-sm font-semibold">{cfg.label}</p>
-        <p className="text-xs text-text-muted-light">
+      <div className="flex flex-col pb-2">
+        <p className="text-sm font-semibold">{label}</p>
+
+        {description && (
+          <p className="text-xs text-text-muted-light mt-0.5">{description}</p>
+        )}
+
+        <p className="text-[11px] text-text-muted-light mt-0.5">
           {a.actor?.username || "Someone"} • {formatDateTime(a.createdAt)}
         </p>
       </div>

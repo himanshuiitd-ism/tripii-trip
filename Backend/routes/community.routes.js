@@ -35,7 +35,6 @@ import {
   deleteMessage,
   getMessageComments,
   getMessages,
-  getMyHelpfulMessages,
   getPinnedMessage,
   reactToComment,
   reactToMessage,
@@ -81,7 +80,12 @@ router.post(
 /* ---------------------------------------------------------
    COMMUNITY SETTINGS / FETCH
 --------------------------------------------------------- */
-router.post("/communitySetting/:communityId", updateCommunitySettings);
+router.post(
+  "/communitySetting/:communityId",
+  upload.fields([{ name: "coverImage", maxCount: 1 }]),
+  updateCommunitySettings
+);
+
 router.get("/getCommunityProfile/:communityId", getCommunityProfile);
 router.get("/getMyCommunities", getUserCommunities);
 router.get("/searchCommunities", searchCommunities);
@@ -95,7 +99,7 @@ router.delete("/deletecommunity/:communityId", deleteCommunity);
 --------------------------------------------------------- */
 router.post("/joinCommunity/:communityId", joinPublicCommunity);
 router.post("/addMember/:communityId", addMembers);
-router.post("/removeMember/:communityid", removeMember);
+router.post("/removeMember/:communityId", removeMember);
 router.post("/leaveCommunity/:communityId", leaveCommunity);
 router.post("/changeMemberRole/:communityId", changeMemberRole);
 router.get("/getCommunityMembers/:communityId", getCommunityMembers);
@@ -143,8 +147,6 @@ router.post("/vote/:messageId", voteOnPoll);
 router.post("/markAsSeen/:communityId", markAllAsSeen);
 
 router.post("/reportMessage/:messageId", reportMessage);
-
-router.get("/helpfulMessages/:communityId", getMyHelpfulMessages);
 
 /* ---------------------------------------------------------
    ROOMS

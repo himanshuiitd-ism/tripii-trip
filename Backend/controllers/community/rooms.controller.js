@@ -122,8 +122,15 @@ export const createRoom = asyncHandler(async (req, res) => {
   if (!membership)
     throw new ApiError(403, "Only community members can create rooms");
 
-  if (!community.settings?.allowMemberRooms && membership.role !== "admin")
-    throw new ApiError(403, "Only admins can create rooms");
+  if (
+    membership.role === "member" &&
+    community.settings?.allowMemberRooms === false
+  ) {
+    throw new ApiError(
+      403,
+      "Members are not allowed to create rooms in this community"
+    );
+  }
 
   // Trip validation
   if (roomtype === "Trip") {

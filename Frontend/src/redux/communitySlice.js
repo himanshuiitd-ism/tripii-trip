@@ -122,10 +122,22 @@ const communitySlice = createSlice({
         state.messages[idx] = {
           ...state.messages[idx],
           ...updated,
+
+          helpful: Array.isArray(updated.helpful)
+            ? [...updated.helpful]
+            : state.messages[idx].helpful,
+
+          helpfulCount:
+            typeof updated.helpfulCount === "number"
+              ? updated.helpfulCount
+              : state.messages[idx].helpfulCount,
+
           poll: updated.poll ? { ...updated.poll } : state.messages[idx].poll,
+
           reactions: updated.reactions
             ? [...updated.reactions]
             : state.messages[idx].reactions,
+
           commentCount:
             typeof updated.commentCount === "number"
               ? updated.commentCount
@@ -178,6 +190,66 @@ const communitySlice = createSlice({
 
       state.messages.push(...newMessages);
     },
+
+    //pin messages
+    // ---------------- PIN / UNPIN ----------------
+    pinCommunityMessage: (state, action) => {
+      const { messageId, pinnedBy, pinnedAt } = action.payload;
+      if (!state.profile) return;
+
+      if (!Array.isArray(state.profile.pinnedMessages)) {
+        state.profile.pinnedMessages = [];
+      }
+
+      const exists = state.profile.pinnedMessages.some(
+        (p) => String(p.message) === String(messageId)
+      );
+
+      if (!exists) {
+        state.profile.pinnedMessages.unshift({
+          message: messageId,
+          pinnedBy,
+          pinnedAt,
+        });
+      }
+    },
+
+    unpinCommunityMessage: (state, action) => {
+      const messageId = action.payload;
+      if (!state.profile?.pinnedMessages) return;
+
+      state.profile.pinnedMessages = state.profile.pinnedMessages.filter(
+        (p) =>
+          (p.message?._id || p.message || p).toString() !== messageId.toString()
+      );
+    },
+
+    addMembersToCommunity: (state, action) => {
+      const newMembers = action.payload;
+
+      const existingIds = new Set(state.profile.members.map((m) => m.user._id));
+
+      newMembers.forEach((m) => {
+        if (!existingIds.has(m.user._id)) {
+          state.profile.members.push(m);
+        }
+      });
+
+      state.profile.memberCount = state.profile.members.length;
+    },
+
+    updateMemberRole(state, action) {
+      const { userId, role } = action.payload;
+      const m = state.profile.members.find((x) => x.user._id === userId);
+      if (m) m.role = role;
+    },
+
+    removeMemberFromCommunity(state, action) {
+      state.profile.members = state.profile.members.filter(
+        (m) => m.user._id !== action.payload
+      );
+      state.profile.memberCount -= 1;
+    },
   },
 });
 
@@ -206,6 +278,13 @@ export const {
 
   addCommunityActivity,
   moveCommunityToTop,
+
+  pinCommunityMessage,
+  unpinCommunityMessage,
+
+  updateMemberRole,
+  addMembersToCommunity,
+  removeMemberFromCommunity,
 } = communitySlice.actions;
 
 export default communitySlice.reducer;

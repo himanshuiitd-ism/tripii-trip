@@ -1,8 +1,10 @@
 import LeftSidebar from "@/components/home/LeftSidebar";
 import RightSidebar from "@/components/home/RightSideBar";
+import useGetAllPost from "@/hooks/useGetAllPost";
 import { Outlet } from "react-router-dom";
 
 const MiniAppLayout = () => {
+  useGetAllPost();
   return (
     <div className="flex w-full">
       {/* LEFT SIDEBAR */}

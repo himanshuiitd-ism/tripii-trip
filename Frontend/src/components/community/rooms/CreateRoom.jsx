@@ -68,7 +68,7 @@ const CreateRoom = () => {
 
   // Filter members (exclude current user)
   const communityMembers = members.filter(
-    (m) => m.user._id !== currentUser?._id
+    (m) => m.user?._id !== currentUser?._id
   );
 
   // Use following instead of followers
@@ -219,6 +219,14 @@ const CreateRoom = () => {
   };
 
   const displayList = getDisplayList();
+
+  if (!profile?.canCreateRoom) {
+    return (
+      <div className="p-10 text-center text-red-600 font-semibold">
+        You are not allowed to create rooms in this community.
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">

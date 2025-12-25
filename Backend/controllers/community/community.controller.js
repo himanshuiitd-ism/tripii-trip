@@ -14,6 +14,7 @@ import { Activity } from "../../models/community/activity.model.js";
 import { sendNotification } from "../user/notification.controller.js";
 import { emitToUser, emitToCommunity } from "../../socket/server.js";
 import { Room } from "../../models/community/room.model.js";
+import { settings } from "cluster";
 
 /**
  * Upload cover image to the proper community folder.
@@ -21,14 +22,31 @@ import { Room } from "../../models/community/room.model.js";
  */
 const uploadCoverImageForCommunity = async (file, communityId) => {
   const uri = getDataUri(file);
+
   const uploaded = await cloudinary.uploader.upload(uri.content, {
     folder: `communities/${communityId}/cover`,
+    public_id: "main", // cleaner
+    overwrite: true,
+    invalidate: true,
+    resource_type: "image",
     transformation: [
       { width: 1200, height: 400, crop: "fill", quality: "auto" },
       { fetch_format: "auto" },
     ],
   });
-  return { url: uploaded.secure_url, publicId: uploaded.public_id };
+
+  return {
+    url: uploaded.secure_url,
+    publicId: uploaded.public_id,
+  };
+};
+
+//for getting membership (used in settings)
+const getCommunityMembership = async (communityId, userId) => {
+  return CommunityMembership.findOne({
+    community: communityId,
+    user: userId,
+  });
 };
 
 /**
@@ -250,95 +268,255 @@ export const createCommunity = asyncHandler(async (req, res) => {
 /**
  * UPDATE COMMUNITY SETTINGS
  */
+
 export const updateCommunitySettings = asyncHandler(async (req, res) => {
   const { communityId } = req.params;
   const userId = req.user._id;
 
-  const membership = await CommunityMembership.findOne({
-    community: communityId,
-    user: userId,
-    role: "admin",
-  });
-
-  if (!membership)
-    throw new ApiError(403, "Only admins can update community settings");
-
+  /* --------------------------------------------------
+     FETCH COMMUNITY & MEMBERSHIP
+  -------------------------------------------------- */
   const community = await Community.findById(communityId);
   if (!community) throw new ApiError(404, "Community not found");
 
-  const { name, description, type, settings } = req.body;
+  const membership = await getCommunityMembership(communityId, userId);
+  if (!membership) throw new ApiError(403, "Not a community member");
 
-  if (name) community.name = name.trim();
-  if (description !== undefined) community.description = description.trim();
-  if (
-    type &&
-    ["private_group", "public_group", "regional_hub", "global_hub"].includes(
-      type
-    )
-  ) {
-    community.type = type;
+  const role = membership.role;
+  const isAdmin = role === "admin";
+  const isModerator = role === "moderator";
+
+  if (!isAdmin && !isModerator) {
+    throw new ApiError(403, "Not authorized");
   }
 
-  if (settings && typeof settings === "object") {
-    community.settings = { ...community.settings, ...settings };
+  /* --------------------------------------------------
+     ACTIVITY QUEUE (ONE PER CHANGE)
+  -------------------------------------------------- */
+  const activities = [];
+
+  /* --------------------------------------------------
+     PARSE BODY (multipart/form-data safe)
+  -------------------------------------------------- */
+  const name = req.body.name;
+  const description = req.body.description;
+
+  let parsedSettings = null;
+  if (typeof req.body.settings === "string") {
+    try {
+      parsedSettings = JSON.parse(req.body.settings);
+    } catch {
+      throw new ApiError(400, "Invalid settings JSON");
+    }
   }
 
-  // Handle cover image update
+  let parsedRules = null;
+  if (typeof req.body.rules === "string") {
+    try {
+      parsedRules = JSON.parse(req.body.rules);
+    } catch {
+      throw new ApiError(400, "Invalid rules JSON");
+    }
+  }
+
+  /* --------------------------------------------------
+     NAME (ADMIN ONLY)
+  -------------------------------------------------- */
+  if (typeof name === "string" && name.trim().length > 0) {
+    if (!isAdmin) {
+      throw new ApiError(403, "Only admin can change community name");
+    }
+
+    const trimmed = name.trim();
+    if (trimmed && trimmed !== community.name) {
+      community.name = trimmed;
+
+      activities.push({
+        community: communityId,
+        actor: userId,
+        type: "settings_updated",
+        payload: { action: "name_updated", newName: name },
+      });
+    }
+  }
+
+  /* --------------------------------------------------
+     DESCRIPTION (ADMIN + MODERATOR)
+  -------------------------------------------------- */
+  if (typeof description === "string") {
+    const trimmed = description.trim();
+
+    // Ignore empty or unchanged description
+    if (trimmed.length > 0 && trimmed !== community.description) {
+      if (!isAdmin) {
+        throw new ApiError(403, "Only admin can change community description");
+      }
+
+      community.description = trimmed;
+
+      activities.push({
+        community: communityId,
+        actor: userId,
+        type: "settings_updated",
+        payload: { action: "description_updated" },
+      });
+    }
+  }
+
+  /* --------------------------------------------------
+     RULES (ADMIN ONLY)
+  -------------------------------------------------- */
+  if (parsedRules !== null) {
+    if (!isAdmin) {
+      throw new ApiError(403, "Only admin can change community rules");
+    }
+
+    if (!Array.isArray(parsedRules)) {
+      throw new ApiError(400, "Rules must be an array");
+    }
+
+    const normalizeRules = (rules = []) =>
+      rules.map((r) => ({
+        title: r.title,
+        description: r.description,
+        order: r.order,
+      }));
+
+    const oldRules = JSON.stringify(normalizeRules(community.rules));
+    const newRules = JSON.stringify(normalizeRules(parsedRules));
+
+    if (oldRules !== newRules) {
+      community.rules = parsedRules;
+
+      activities.push({
+        community: communityId,
+        actor: userId,
+        type: "settings_updated",
+        payload: { action: "rules_updated" },
+      });
+    }
+  }
+
+  /* --------------------------------------------------
+     SETTINGS FLAGS (ADMIN + MODERATOR)
+  -------------------------------------------------- */
+  if (parsedSettings) {
+    let settingsChanged = false;
+
+    const newSettings = { ...community.settings };
+
+    for (const key of Object.keys(parsedSettings)) {
+      if (community.settings?.[key] !== parsedSettings[key]) {
+        newSettings[key] = parsedSettings[key];
+        settingsChanged = true;
+      }
+    }
+
+    if (settingsChanged) {
+      community.settings = newSettings;
+
+      activities.push({
+        community: communityId,
+        actor: userId,
+        type: "settings_updated",
+        payload: { action: "permissions_updated" },
+      });
+    }
+  }
+
+  /* --------------------------------------------------
+     COVER IMAGE (ADMIN + MODERATOR)
+  -------------------------------------------------- */
   const coverFile = req.files?.coverImage?.[0];
   if (coverFile) {
     if (!coverFile.mimetype.startsWith("image/")) {
       throw new ApiError(400, "Cover must be an image");
     }
 
-    // Delete old cover if exists
-    if (community.backgroundImage?.publicId) {
-      try {
-        await cloudinary.uploader.destroy(community.backgroundImage.publicId);
-      } catch (err) {
-        console.error("Failed to delete old cover:", err);
-      }
-    }
+    const newCover = await uploadCoverImageForCommunity(coverFile, communityId);
 
-    try {
-      const newCover = await uploadCoverImageForCommunity(
-        coverFile,
-        communityId
-      );
+    if (community.backgroundImage?.publicId !== newCover.publicId) {
       community.backgroundImage = newCover;
-    } catch (err) {
-      console.error("New cover upload failed:", err);
+
+      activities.push({
+        community: communityId,
+        actor: userId,
+        type: "settings_updated",
+        payload: { action: "cover_updated" },
+      });
     }
   }
 
+  /* --------------------------------------------------
+     SAVE COMMUNITY
+  -------------------------------------------------- */
   await community.save();
 
-  // Activity log
-  await Activity.create({
-    community: communityId,
-    actor: userId,
-    type: "settings_updated",
-    payload: {
-      action: "settings_updated",
-      changes: { name, description, type, settings },
-    },
-  });
-
-  // Emit update to community members (real-time)
-  try {
-    emitToCommunity(communityId.toString(), "community:updated", {
-      communityId,
-      name: community.name,
-      description: community.description,
-      backgroundImage: community.backgroundImage,
-      settings: community.settings,
-    });
-  } catch (err) {
-    console.error("emitToCommunity error:", err);
+  if (activities.length) {
+    await Activity.insertMany(activities);
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, community, "Community updated successfully"));
+  /* --------------------------------------------------
+     SOCKET BROADCAST
+  -------------------------------------------------- */
+  emitToCommunity(communityId.toString(), "community:updated", {
+    communityId,
+    name: community.name,
+    description: community.description,
+    backgroundImage: community.backgroundImage,
+    settings: community.settings,
+    rules: community.rules,
+    activities: activities.map((a) => a.payload.action),
+  });
+
+  /* --------------------------------------------------
+     RETURN FULL PROFILE (SAME AS getCommunityProfile)
+  -------------------------------------------------- */
+  const updatedCommunity = await Community.findById(communityId)
+    .select(
+      `
+      name
+      description
+      backgroundImage.url
+      rules
+      type
+      createdBy
+      updatedAt
+      memberCount
+      roomsLast7DaysCount
+      rooms
+      featuredTrips
+      tags
+      pinnedMessages
+      settings.allowMembersToAdd
+      settings.allowMemberRooms
+    `
+    )
+    .populate("createdBy", "username profilePicture bio")
+    .lean();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        ...updatedCommunity,
+        isMember: true,
+        currentUserRole: role,
+
+        canPost: true,
+        canCreateRoom:
+          isAdmin ||
+          isModerator ||
+          updatedCommunity.settings?.allowMemberRooms === true,
+        canReact: true,
+        canVote: true,
+
+        totalMembers: updatedCommunity.memberCount,
+        roomsLast7Days: updatedCommunity.roomsLast7DaysCount,
+      },
+      "Community settings updated successfully"
+    )
+  );
 });
 
 /**
@@ -365,6 +543,8 @@ export const getCommunityProfile = asyncHandler(async (req, res) => {
         featuredTrips
         tags
         pinnedMessages
+        settings.allowMembersToAdd
+        settings.allowMemberRooms
       `
     )
     .populate("createdBy", "username profilePicture bio")
@@ -428,6 +608,10 @@ export const getCommunityProfile = asyncHandler(async (req, res) => {
     );
   }
 
+  const isAdmin = membership?.role === "admin";
+  const isModerator = membership?.role === "moderator";
+  const isMember = !!membership;
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -436,14 +620,17 @@ export const getCommunityProfile = asyncHandler(async (req, res) => {
         rules: community.rules || [],
         pinnedMessages: community.pinnedMessages || [],
         isPublic,
-        isMember: !!membership,
+        isMember,
         currentUserRole: membership?.role || null,
 
         // permissions
-        canPost: !!membership,
-        canCreateRoom: !!membership,
-        canReact: !!membership,
-        canVote: !!membership,
+        canPost: isMember,
+        canCreateRoom:
+          isAdmin ||
+          isModerator ||
+          community.settings?.allowMemberRooms === true,
+        canReact: isMember,
+        canVote: isMember,
 
         totalMembers: community.memberCount,
         roomsLast7Days: community.roomsLast7DaysCount,
@@ -790,9 +977,6 @@ export const getSimilarCommunities = asyncHandler(async (req, res) => {
       )
     );
 });
-
-// Route to add in your routes file:
-// router.get("/similarCommunities/:communityId", isAuthenticated, getSimilarCommunities);
 
 /**
  * SUGGESTED COMMUNITIES

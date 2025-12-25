@@ -16,6 +16,11 @@ import {
   moveCommunityToTop,
   addCommunityRoom,
   updateCommunityRoom,
+  pinCommunityMessage,
+  unpinCommunityMessage,
+  addMembersToCommunity,
+  updateMemberRole,
+  removeMemberFromCommunity,
 } from "@/redux/communitySlice";
 import { updateRoomMembers } from "@/redux/roomSlice.js";
 
@@ -97,52 +102,11 @@ const SocketProvider = ({ children }) => {
       dispatch(updateCommunityMessage({ _id: messageId, poll }));
     });
 
-    socket.on("community:message:pinned", ({ messageId, pinnedBy }) => {
-      if (communityProfile && communityProfile._id === selectedCommunity?._id) {
-        const updatedPinnedMessages = [
-          ...(communityProfile.pinnedMessages || []),
-        ];
-
-        const alreadyPinned = updatedPinnedMessages.some((p) => {
-          const pId = typeof p === "object" && p.message ? p.message : p;
-          const currentId = typeof pId === "object" && pId._id ? pId._id : pId;
-          return String(currentId) === String(messageId);
-        });
-
-        if (!alreadyPinned) {
-          updatedPinnedMessages.push({
-            message: messageId,
-            pinnedBy: pinnedBy,
-            pinnedAt: new Date().toISOString(),
-          });
-
-          dispatch(
-            setCommunityProfile({
-              ...communityProfile,
-              pinnedMessages: updatedPinnedMessages,
-            })
-          );
-        }
-      }
+    socket.on("community:message:pinned", (payload) => {
+      dispatch(pinCommunityMessage(payload));
     });
-
     socket.on("community:message:unpinned", ({ messageId }) => {
-      if (communityProfile && communityProfile._id === selectedCommunity?._id) {
-        const updatedPinnedMessages = (
-          communityProfile.pinnedMessages || []
-        ).filter((p) => {
-          const pId = typeof p === "object" && p.message ? p.message : p;
-          const currentId = typeof pId === "object" && pId._id ? pId._id : pId;
-          return String(currentId) !== String(messageId);
-        });
-
-        dispatch(
-          setCommunityProfile({
-            ...communityProfile,
-            pinnedMessages: updatedPinnedMessages,
-          })
-        );
-      }
+      dispatch(unpinCommunityMessage(messageId));
     });
 
     socket.on("community:updated", (data) => {
@@ -194,14 +158,18 @@ const SocketProvider = ({ children }) => {
     // -----------------------
     // MESSAGE HELPFUL
     // -----------------------
-    socket.on("community:message:helpful", ({ messageId, helpfulCount }) => {
-      dispatch(
-        updateCommunityMessage({
-          _id: messageId,
-          helpfulCount,
-        })
-      );
-    });
+    socket.on(
+      "community:message:helpful",
+      ({ messageId, helpfulCount, helpful }) => {
+        dispatch(
+          updateCommunityMessage({
+            _id: messageId,
+            helpful,
+            helpfulCount,
+          })
+        );
+      }
+    );
 
     // -----------------------
     // ROOM EVENTS - 🔥 KEY CHANGES HERE
@@ -280,6 +248,19 @@ const SocketProvider = ({ children }) => {
       }
     });
 
+    //community settings
+    socket.on("member:bulk_added", ({ members }) => {
+      dispatch(addMembersToCommunity(members));
+    });
+
+    socket.on("role:updated", ({ userId, role }) => {
+      dispatch(updateMemberRole({ userId, role }));
+    });
+
+    socket.on("member:removed", ({ userId }) => {
+      dispatch(removeMemberFromCommunity(userId));
+    });
+
     // cleanup on unmount or user change
     return () => {
       socket.off("connect");
@@ -307,6 +288,10 @@ const SocketProvider = ({ children }) => {
       socket.off("presence:update");
 
       socket.off("sync:community:messages");
+
+      socket.off("member:bulk_added");
+      socket.off("role:updated");
+      socket.off("member:removed");
     };
   }, [user, dispatch, selectedCommunity, communityProfile]);
 

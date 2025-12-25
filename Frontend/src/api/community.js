@@ -36,12 +36,16 @@ export const joinPublicCommunity = (communityId, displayName) =>
     { withCredentials: true }
   );
 
-export const addMembers = (communityId, members = []) =>
-  api.post(
-    `/api/community/addMember/${communityId}`,
-    { members },
-    { withCredentials: true }
-  );
+export const addMembers = (communityId, payload) => {
+  // enforce correct shape
+  if (!payload || !Array.isArray(payload.members)) {
+    throw new Error("addMembers expects { members: [] }");
+  }
+
+  return api.post(`/api/community/addMember/${communityId}`, payload, {
+    withCredentials: true,
+  });
+};
 
 export const leaveCommunity = (communityId) =>
   api.post(
@@ -73,6 +77,9 @@ export const createCommunity = (formData) =>
 export const updateCommunitySettings = (communityId, formData) =>
   api.post(`/api/community/communitySetting/${communityId}`, formData, {
     withCredentials: true,
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
   });
 
 export const deleteCommunity = (communityId) =>
@@ -188,13 +195,6 @@ export const reactOnComment = (commentId, emoji) =>
     { withCredentials: true }
   );
 
-// export const commentHelpful = (commentId) =>
-//   api.patch(
-//     `/api/community/commentHelpful/${commentId}`,
-//     {},
-//     { withCredentials: true }
-//   );
-
 /* --------------------------------------------------
    USER-SPECIFIC
 -------------------------------------------------- */
@@ -207,13 +207,22 @@ export const markCommunitySeen = (communityId) =>
     }
   );
 
-export const getMyHelpfulMessages = (communityId) =>
-  api.get(`/api/community/helpfulMessages/${communityId}`, {
-    withCredentials: true,
-  });
-
 export const getSimilarCommunities = (communityId, params = {}) =>
   api.get(`/api/community/similarCommunities/${communityId}`, {
     params,
     withCredentials: true,
   });
+
+export const changeMemberRole = (communityId, targetUserId, role) =>
+  api.post(
+    `/api/community/changeMemberRole/${communityId}`,
+    { targetUserId, role },
+    { withCredentials: true }
+  );
+
+export const removeMember = (communityId, targetUserId) =>
+  api.post(
+    `/api/community/removeMember/${communityId}`,
+    { targetUserId },
+    { withCredentials: true }
+  );

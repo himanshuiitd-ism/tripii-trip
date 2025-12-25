@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { getSimilarCommunities } from "@/api/community";
 import ActivityItem from "./ActivityItem";
 import { formatDate, ROOM_STATUS_META } from "../common/roomStatus";
+import InviteMembersModal from "./InviteMembersModal";
 
 export default function RightSidebar({ profile }) {
   const navigate = useNavigate();
@@ -12,8 +13,18 @@ export default function RightSidebar({ profile }) {
   const rooms = useSelector((s) => s.community.rooms || []);
   const activities = useSelector((s) => s.community.activities || []);
   const [showAllActivities, setShowAllActivities] = useState(false);
+  const [showAllRooms, setShowAllRooms] = useState(false);
   const [similarCommunities, setSimilarCommunities] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  // For adding members to community
+  const currentUserRole = profile?.currentUserRole;
+
+  const canAddMembers =
+    profile?.settings?.allowMembersToAdd ||
+    currentUserRole === "admin" ||
+    currentUserRole === "moderator";
 
   // Fetch similar communities based on tags
   useEffect(() => {
@@ -40,10 +51,30 @@ export default function RightSidebar({ profile }) {
   const visibleActivities = showAllActivities
     ? activities
     : activities.slice(0, 5);
+
+  const visibleRooms = showAllRooms ? rooms : rooms.slice(0, 6);
+
   const rules = Array.isArray(profile.rules) ? profile.rules : [];
 
   return (
     <div className="space-y-4 w-80">
+      {inviteOpen && (
+        <InviteMembersModal
+          communityId={profile._id}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
+
+      {canAddMembers && (
+        <button
+          onClick={() => setInviteOpen(true)}
+          className="text-xs font-semibold px-3 py-1.5 rounded-full
+               bg-blue-600 text-white hover:bg-blue-700 transition"
+        >
+          + Add Members
+        </button>
+      )}
+
       {/* ---------------- ROOMS - 🔥 REAL-TIME UPDATES ---------------- */}
       <div
         className="rounded-lg p-4"
@@ -60,78 +91,82 @@ export default function RightSidebar({ profile }) {
         </div>
 
         {rooms.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {rooms.slice(0, 6).map((r) => {
-              const statusMeta =
-                ROOM_STATUS_META[r.status] || ROOM_STATUS_META.upcoming;
+          <>
+            <ul className="flex flex-col gap-2">
+              {visibleRooms.map((r) => {
+                const statusMeta =
+                  ROOM_STATUS_META[r.status] || ROOM_STATUS_META.upcoming;
 
-              return (
-                <li key={r._id}>
-                  <div
-                    onClick={() =>
-                      navigate(`/community/${r.parentCommunity}/room/${r._id}`)
-                    }
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition"
-                    style={{ cursor: "pointer" }}
-                  >
-                    {/* ROOM IMAGE */}
+                return (
+                  <li key={r._id}>
                     <div
-                      className="bg-cover bg-center rounded-md w-10 h-10 shrink-0"
-                      style={{
-                        backgroundImage: `url(${
-                          r.roombackgroundImage?.url || ""
-                        })`,
-                        borderRadius: "50%",
-                      }}
-                    />
+                      onClick={() =>
+                        navigate(
+                          `/community/${r.parentCommunity}/room/${r._id}`
+                        )
+                      }
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition"
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* ROOM IMAGE */}
+                      <div
+                        className="bg-cover bg-center rounded-md w-10 h-10 shrink-0"
+                        style={{
+                          backgroundImage: `url(${
+                            r.roombackgroundImage?.url || ""
+                          })`,
+                          borderRadius: "50%",
+                        }}
+                      />
 
-                    {/* ROOM INFO */}
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-xs font-semibold truncate">
-                        {r.name} ·{" "}
-                        <span
-                          style={{
-                            color: "red",
-                            fontSize: "10px",
-                            fontWeight: "700",
-                          }}
-                        >
-                          {r.roomtype === "Trip" ? "Trip" : "Norm"}
+                      {/* ROOM INFO */}
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-xs font-semibold truncate">
+                          {r.name} ·{" "}
+                          <span
+                            style={{
+                              color: "red",
+                              fontSize: "10px",
+                              fontWeight: "700",
+                            }}
+                          >
+                            {r.roomtype === "Trip" ? "Trip" : "Norm"}
+                          </span>
                         </span>
-                      </span>
 
-                      <span className="text-[11px] text-gray-500">
-                        {r.members?.length || 0} members ·{" "}
-                        {formatDate(r.createdAt)}
+                        <span className="text-[11px] text-gray-500">
+                          {r.members?.length || 0} members ·{" "}
+                          {formatDate(r.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* STATUS BADGE */}
+                      <span
+                        className="text-[10px] font-semibold px-2 py-1 rounded-full"
+                        style={{
+                          color: statusMeta.color,
+                          backgroundColor: statusMeta.bg,
+                        }}
+                      >
+                        {statusMeta.label}
                       </span>
                     </div>
+                  </li>
+                );
+              })}
+            </ul>
 
-                    {/* STATUS BADGE */}
-                    <span
-                      className="text-[10px] font-semibold px-2 py-1 rounded-full"
-                      style={{
-                        color: statusMeta.color,
-                        backgroundColor: statusMeta.bg,
-                      }}
-                    >
-                      {statusMeta.label}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+            {rooms.length > 6 && (
+              <button
+                onClick={() => setShowAllRooms((s) => !s)}
+                className="mt-3 w-full rounded-full h-8 bg-white text-xs font-semibold hover:bg-gray-50 transition"
+              >
+                {showAllRooms ? "Show less" : `Show all ${rooms.length} rooms`}
+              </button>
+            )}
+          </>
         ) : (
           <p className="text-xs text-gray-600">No rooms yet</p>
-        )}
-
-        {rooms.length > 6 && (
-          <button
-            onClick={() => navigate(`/community/${profile._id}?tab=rooms`)}
-            className="block mt-2 text-xs text-blue-600 hover:underline w-full text-left"
-          >
-            Show all {rooms.length} rooms
-          </button>
         )}
       </div>
 

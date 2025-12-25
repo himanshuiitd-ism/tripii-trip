@@ -424,7 +424,7 @@ body {
 
 /* POST button */
 .post-btn {
-  background: #00ffe5;
+  background: rgb(0, 255, 229);
   color: black;
   padding: 8px 20px;
   font-weight: 700;

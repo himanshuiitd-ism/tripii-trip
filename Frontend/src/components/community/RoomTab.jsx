@@ -1,17 +1,27 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Calendar, Users, Tag } from "lucide-react";
+import {
+  MapPin,
+  Calendar,
+  Users,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { formatDate, ROOM_STATUS_META } from "../common/roomStatus";
 import { joinRoom } from "@/api/room";
 import { toast } from "react-hot-toast";
 import { updateCommunityRoom } from "@/redux/communitySlice";
 
-const RoomsTab = ({ communityId }) => {
+const RoomsTab = () => {
   const navigate = useNavigate();
+  const community = useSelector((s) => s.community.profile);
+  const communityId = community._id;
   const rooms = useSelector((s) => s.community.rooms || []);
   const currentUser = useSelector((s) => s.auth?.user);
   const [joiningRoomId, setJoiningRoomId] = useState(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
   const dispatch = useDispatch();
 
   console.log("Rooms:", rooms);
@@ -48,6 +58,18 @@ const RoomsTab = ({ communityId }) => {
         m.user?._id?.toString() === currentUser._id.toString() ||
         m.user?.toString() === currentUser._id.toString()
     );
+  };
+
+  const toggleDescription = (roomId, e) => {
+    e.stopPropagation();
+    setExpandedDescriptions((prev) => ({
+      ...prev,
+      [roomId]: !prev[roomId],
+    }));
+  };
+
+  const shouldShowMoreButton = (description) => {
+    return description && description.length > 100;
   };
 
   if (rooms.length === 0) {
@@ -92,6 +114,8 @@ const RoomsTab = ({ communityId }) => {
             ROOM_STATUS_META[room.status] || ROOM_STATUS_META.upcoming;
           const isMember = isUserMember(room);
           const isJoining = joiningRoomId === room._id;
+          const isFinished = room.status === "finished";
+          const isExpanded = expandedDescriptions[room._id];
 
           return (
             <div
@@ -147,9 +171,33 @@ const RoomsTab = ({ communityId }) => {
               <div className="p-4">
                 {/* Description */}
                 {room.description && (
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {room.description}
-                  </p>
+                  <div className="mb-3">
+                    <p
+                      className={`text-sm text-gray-600 ${
+                        !isExpanded && shouldShowMoreButton(room.description)
+                          ? "line-clamp-2"
+                          : ""
+                      }`}
+                    >
+                      {room.description}
+                    </p>
+                    {shouldShowMoreButton(room.description) && (
+                      <button
+                        onClick={(e) => toggleDescription(room._id, e)}
+                        className="text-blue-600 hover:text-blue-700 text-xs font-medium mt-1 flex items-center gap-1"
+                      >
+                        {isExpanded ? (
+                          <>
+                            Show less <ChevronUp size={14} />
+                          </>
+                        ) : (
+                          <>
+                            Show more <ChevronDown size={14} />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {/* Trip Location */}
@@ -219,21 +267,26 @@ const RoomsTab = ({ communityId }) => {
                   </div>
                 </div>
 
-                {/* Join Button */}
-                {!isMember && (
+                {/* Action Button - Finished / Joined / Join */}
+                {isFinished ? (
+                  <div className="w-full mt-3 py-2.5 bg-gradient-to-r from-gray-100 to-gray-50 rounded-lg font-semibold text-center border-2 border-gray-300 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gray-200 opacity-20"></div>
+                    <span className="relative text-gray-600 text-sm tracking-wide">
+                      🏁 Room Finished
+                    </span>
+                  </div>
+                ) : isMember ? (
+                  <div className="w-full mt-3 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 rounded-lg font-semibold text-center border-2 border-green-200 shadow-sm">
+                    <span className="text-sm">✓ You're a Member</span>
+                  </div>
+                ) : (
                   <button
                     onClick={(e) => handleJoinRoom(room._id, e)}
                     disabled={isJoining}
-                    className="w-full mt-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="w-full mt-3 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed"
                   >
                     {isJoining ? "Joining..." : "Join Room"}
                   </button>
-                )}
-
-                {isMember && (
-                  <div className="w-full mt-3 py-2 bg-green-50 text-green-700 rounded-lg font-semibold text-center border border-green-200">
-                    ✓ Joined
-                  </div>
                 )}
               </div>
             </div>

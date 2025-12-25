@@ -109,6 +109,11 @@ export default function useCommunityProfile(communityId) {
         dispatch(setCommunityMessages(merged));
       }
 
+      // For helpful messages
+      // if (hRes.status === "fulfilled") {
+      //   dispatch(setHelpfulMessages(hRes?.value?.data?.data?.messages));
+      // }
+
       dispatch(setCommunityActivities(activityRes?.data?.data?.activities));
     } catch (err) {
       dispatch(setCommunityError(err?.message || "Unexpected error"));

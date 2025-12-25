@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Image, Smile, X } from "lucide-react";
 import GifPickerOverlay from "@/components/common/GifPickerOverlay";
 
-export default function RoomInput({ onSend, sending }) {
+export default function RoomInput({ onSend, sending, room }) {
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -50,37 +50,42 @@ export default function RoomInput({ onSend, sending }) {
           </button>
         </div>
       )}
+      {room.status === "finished" ? (
+        <div className="flex items-center gap-3 rounded-xl bg-gray-100 px-4 py-2">
+          Room is finished! You can't message anymore
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl bg-gray-100 px-4 py-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1 bg-transparent outline-none text-sm"
+          />
 
-      <div className="flex items-center gap-3 rounded-xl bg-gray-100 px-4 py-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type your message..."
-          className="flex-1 bg-transparent outline-none text-sm"
-        />
+          {/* IMAGE */}
+          <label className="cursor-pointer text-gray-500 hover:text-gray-800">
+            <Image size={18} />
+            <input type="file" accept="image/*" hidden onChange={handleFile} />
+          </label>
 
-        {/* IMAGE */}
-        <label className="cursor-pointer text-gray-500 hover:text-gray-800">
-          <Image size={18} />
-          <input type="file" accept="image/*" hidden onChange={handleFile} />
-        </label>
+          {/* GIF */}
+          <button
+            onClick={() => setShowGif(true)}
+            className="text-gray-500 hover:text-gray-800"
+          >
+            GIF
+          </button>
 
-        {/* GIF */}
-        <button
-          onClick={() => setShowGif(true)}
-          className="text-gray-500 hover:text-gray-800"
-        >
-          GIF
-        </button>
-
-        <button
-          onClick={handleSend}
-          disabled={sending}
-          className="bg-primary px-4 py-2 rounded-lg font-semibold"
-        >
-          Send
-        </button>
-      </div>
+          <button
+            onClick={handleSend}
+            disabled={sending}
+            className="bg-primary px-4 py-2 rounded-lg font-semibold"
+          >
+            Send
+          </button>
+        </div>
+      )}
 
       {showGif && (
         <GifPickerOverlay

@@ -23,8 +23,6 @@ const Room = () => {
   const room = useRoomData(roomId);
   const [setting, setSetting] = useState(false);
 
-  console.log("Room:", room);
-
   useEffect(() => {
     // 🔥 CLEAR OLD ROOM DATA
     dispatch(clearRoomState());
@@ -87,7 +85,7 @@ const Room = () => {
         </div>
 
         {/* INPUT */}
-        <RoomInput onSend={send} />
+        <RoomInput onSend={send} room={room} />
       </div>
 
       {/* RIGHT SIDEBAR */}
