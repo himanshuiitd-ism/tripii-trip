@@ -3,7 +3,6 @@ import { useSelector, useDispatch } from "react-redux";
 
 import { getSuggestedUsers, followOrUnfollow } from "@/api/users";
 import { setSuggestedUser, setUserProfile } from "@/redux/authslice";
-import { Link, Navigate } from "react-router-dom";
 
 const dummyPlaces = [
   {
@@ -86,29 +85,25 @@ const RightSideBar = () => {
   const filteredSuggested = suggestedUser?.filter(
     (u) => u._id !== userProfile._id
   );
+
+  console.log("users:", userProfile);
   return (
     <div className="rightsidebar">
       <div className="rightsidebar-inner">
         {/* --- PROFILE CARD --- */}
         <div className="rs-card">
-          <Link to={`/profile/${userProfile._id}`}>
-            <div
-              className="rs-avatar"
-              style={{
-                backgroundImage: `url(${
-                  userProfile.profilePicture?.url || "/travel.jpg"
-                })`,
-              }}
-            ></div>
-          </Link>
-          <Link to={`/profile/${userProfile._id}`}>
-            <h3 className="rs-name">
-              {userProfile.fullName
-                ? userProfile.fullName
-                : userProfile.username}
-            </h3>
-            <p className="rs-handle">@{userProfile.username}</p>
-          </Link>
+          <div
+            className="rs-avatar"
+            style={{
+              backgroundImage: `url(${
+                userProfile.profilePicture?.url || "/travel.jpg"
+              })`,
+            }}
+          ></div>
+
+          <h3 className="rs-name">{userProfile.username}</h3>
+          <p className="rs-handle">@{userProfile.username}</p>
+
           <div className="rs-row">
             <span>XP</span>
             <b>{xp}</b>

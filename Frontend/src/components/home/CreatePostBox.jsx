@@ -6,7 +6,7 @@ import { Image as ImageIcon, X as CloseIcon } from "lucide-react";
 import { setUserProfile } from "@/redux/authslice";
 
 const CreatePostBox = () => {
-  const { userProfile } = useSelector((s) => s.auth);
+  const user = useSelector((s) => s.auth.user);
   const dispatch = useDispatch();
 
   const [text, setText] = useState("");
@@ -94,7 +94,7 @@ const CreatePostBox = () => {
       {/* TOP: PROFILE + TEXTAREA */}
       <div className="create-post-top">
         <img
-          src={userProfile.profilePicture.url || "/travel.jpg"}
+          src={user.profilePicture.url || "/travel.jpg"}
           className="avatar"
         />
         <textarea
