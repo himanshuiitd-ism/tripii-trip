@@ -18,6 +18,9 @@ const tripSchema = new Schema(
       required: true,
     },
 
+    isClosed: { type: Boolean, default: false },
+    closedAt: Date,
+
     participants: [{ type: Schema.Types.ObjectId, ref: "User" }],
 
     startDate: { type: Date, required: true },

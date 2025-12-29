@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import GifPickerOverlay from "@/components/common/GifPickerOverlay";
 import EmojiPickerPopover from "@/components/common/EmojiPickerPopover";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const CommentItem = ({
   comment,
@@ -28,6 +29,7 @@ const CommentItem = ({
   const [loading, setLoading] = useState(false);
 
   const fileInputRef = useRef(null);
+  const navigate = useNavigate();
 
   const replies = allComments.filter((c) => c.parentComment === comment._id);
 
@@ -128,12 +130,20 @@ const CommentItem = ({
           src={comment.author.profilePicture?.url || "/travel.jpg"}
           className="size-10 rounded-full object-cover mt-1"
           alt={`${comment.author.username}'s profile`}
+          onClick={() => navigate(`/profile/${comment?.author?._id}`)}
+          style={{ cursor: "pointer" }}
         />
 
         <div className="flex flex-col flex-1">
           <div className="flex justify-between items-start">
             <div className="flex items-baseline gap-2">
-              <p className="font-semibold text-sm">{comment.author.username}</p>
+              <p
+                className="font-semibold text-sm"
+                onClick={() => navigate(`/profile/${comment?.author?._id}`)}
+                style={{ cursor: "pointer" }}
+              >
+                {comment.author.username}
+              </p>
               <p className="text-xs text-gray-500">
                 {timeAgo(comment.createdAt)}
               </p>

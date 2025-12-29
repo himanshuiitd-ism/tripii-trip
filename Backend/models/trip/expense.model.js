@@ -8,6 +8,14 @@ const expenseSchema = new Schema(
 
     amount: { type: Number, required: true },
 
+    location: {
+      name: String,
+      coordinates: {
+        lat: Number,
+        lng: Number,
+      },
+    },
+
     paidBy: [
       {
         user: { type: Schema.Types.ObjectId, ref: "User", required: true },

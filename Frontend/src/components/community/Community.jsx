@@ -53,7 +53,11 @@ export default function Community() {
   }, [profile?._id]);
 
   if (loading || !profile) {
-    return <div className="p-6">Loading community...</div>;
+    return (
+      <center className="p-6" style={{ fontSize: "40px", fontWeight: "600" }}>
+        Loading Community...
+      </center>
+    );
   }
 
   return (

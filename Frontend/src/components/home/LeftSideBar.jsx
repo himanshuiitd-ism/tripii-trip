@@ -125,7 +125,7 @@ const RoomSidebarItem = ({ room, navigateTo = "room" }) => {
               setShowInfo((p) => !p);
             }}
           >
-            {isTripRoom ? "📍" : <Tag size={10} />}
+            {isTripRoom ? "Trip" : <Tag size={10} />}
           </button>
         </div>
 

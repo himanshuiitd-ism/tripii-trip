@@ -22,7 +22,7 @@ const Navbar = () => {
         <button onClick={() => navigate("/")}>Home</button>
         <button onClick={() => navigate("/communities")}>Communities</button>
         <button onClick={() => navigate("/chatbot")}>Sunday AI</button>
-        <button>Trips</button>
+        <button onClick={() => navigate("/trips")}>Trips</button>
         <button onClick={() => navigate("/places")}>Places</button>
         <button>Marketplace</button>
         <button

@@ -293,9 +293,14 @@ const CommunityPost = ({ post }) => {
             <div className="flex items-center gap-2 text-xs text-text-muted-light">
               <div
                 className="w-8 h-8 rounded-full bg-cover bg-center"
-                style={{ backgroundImage: `url(${avatar})` }}
+                style={{ backgroundImage: `url(${avatar})`, cursor: "pointer" }}
+                onClick={() => navigate(`/profile/${latestPost?.sender?._id}`)}
               />
-              <span className="font-bold text-[16px] text-text-light">
+              <span
+                className="font-bold text-[16px] text-text-light"
+                onClick={() => navigate(`/profile/${latestPost?.sender?._id}`)}
+                style={{ cursor: "pointer" }}
+              >
                 {latestPost.sender?.username ||
                   latestPost.senderDisplayName ||
                   "Unknown"}

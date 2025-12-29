@@ -25,10 +25,6 @@ const useGetRooms = () => {
           getSuggestedRooms(),
         ]);
 
-        console.log("My", my);
-        console.log("trip", trip);
-        console.log("Suggested", suggested);
-
         dispatch(setMyRooms(my.data.data.rooms));
         dispatch(setTripRooms(trip.data.data.rooms));
         dispatch(setSuggestedRooms(suggested.data.data.rooms));

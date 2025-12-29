@@ -1498,3 +1498,7 @@ body {
 .chat-link:hover {
   color: red;
 }
+
+.trips-trip :hover {
+  background-color: rgb(250, 255, 255);
+}

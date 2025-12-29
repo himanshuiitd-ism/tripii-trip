@@ -74,9 +74,19 @@ const RightSideBar = () => {
         )
       );
 
+      // Optimistic UI update
+      dispatch(
+        setSuggestedUser(
+          suggestedUser.map((u) =>
+            u._id === id ? { ...u, _isFollowing: !u._isFollowing } : u
+          )
+        )
+      );
+
       const res = await followOrUnfollow(id);
 
       if (res?.data?.data?.updatedUser) {
+        dispatch(setUserProfile(res.data.data.updatedUser));
         dispatch(setUserProfile(res.data.data.updatedUser));
       }
     } catch (err) {
@@ -275,6 +285,14 @@ const RightSideBar = () => {
               </div>
             ))}
           </div>
+              <button
+                className={`rs-follow ${u._isFollowing ? "rs-following" : ""}`}
+                onClick={() => toggleFollow(u._id)}
+              >
+                {u._isFollowing ? "Following" : "Follow"}
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </div>

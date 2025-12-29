@@ -7,6 +7,7 @@ import communitySlice from "./communitySlice.js";
 import chatbotSlice from "./chatbotSlice.js";
 import socketSlice from "./socketSlice.js";
 import roomSlice from "./roomSlice.js";
+import tripSlice from "./tripSlice.js";
 
 const rootReducer = combineReducers({
   auth: authSlice,
@@ -15,6 +16,7 @@ const rootReducer = combineReducers({
   chatbot: chatbotSlice,
   socket: socketSlice,
   room: roomSlice,
+  trip: tripSlice,
 });
 
 const persistConfig = {

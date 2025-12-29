@@ -46,14 +46,18 @@ const notificationSchema = new Schema(
         "community_message_upvote",
         "community_message_comment",
         "community_comment_upvote",
-        "reply",
-        "mention",
 
         // TRIPS
         "trip_invite",
         "trip_join_request",
         "trip_member_added",
         "trip_completed",
+        // TRIPS (ACTION RESULTS)
+        "trip_invite_accepted",
+        "trip_invite_rejected",
+        "trip_invite_cancelled",
+        "trip_join_accepted",
+        "trip_join_rejected",
 
         // WALLET / PAYMENTS
         "expense_added",
@@ -81,6 +85,10 @@ const notificationSchema = new Schema(
       trim: true,
     },
 
+    expiresAt: {
+      type: Date,
+      index: true,
+    },
     /* ------------------------------------------------------
        OPTIONAL TARGET MODELS 
        (One notification can relate to only ONE of these)

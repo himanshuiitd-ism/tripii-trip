@@ -163,6 +163,7 @@ export const deleteNotification = asyncHandler(async (req, res) => {
 /* ============================================================
    🔥 7. TRIP INVITE (NEW, CLEAN VERSION)
 ============================================================ */
+
 export const sendTripInvite = asyncHandler(async (req, res) => {
   const senderId = req.user._id;
   const { receiverId, tripId } = req.body;
@@ -170,15 +171,29 @@ export const sendTripInvite = asyncHandler(async (req, res) => {
   const trip = await Trip.findById(tripId);
   if (!trip) throw new ApiError(404, "Trip not found");
 
+  if (trip.participants.some((id) => id.toString() === receiverId))
+    throw new ApiError(400, "User already in trip");
+
+  const existingInvite = await Notification.findOne({
+    recipient: receiverId,
+    sender: senderId,
+    trip: tripId,
+    type: "trip_invite",
+    "metadata.actionStatus": "pending",
+  });
+
+  if (existingInvite) throw new ApiError(400, "Invite already sent");
+
   const noti = await sendNotification({
     recipient: receiverId,
     sender: senderId,
     type: "trip_invite",
-    message: `invited you to join their trip`,
+    message: "invited you to join a trip",
     trip: tripId,
+    metadata: { actionStatus: "pending" },
   });
 
-  return res.status(200).json(new ApiResponse(200, noti, "Trip invite sent"));
+  return res.status(200).json(new ApiResponse(200, noti));
 });
 
 /* ============================================================
@@ -194,7 +209,7 @@ export const askToJoinTrip = asyncHandler(async (req, res) => {
   if (trip.createdBy.toString() === userId.toString())
     throw new ApiError(400, "You created this trip");
 
-  if (trip.participants.includes(userId))
+  if (trip.participants.some((id) => id.toString() === userId.toString()))
     throw new ApiError(400, "Already a member");
 
   const noti = await sendNotification({
@@ -203,9 +218,10 @@ export const askToJoinTrip = asyncHandler(async (req, res) => {
     type: "trip_join_request",
     message: "requested to join your trip",
     trip: tripId,
+    metadata: { actionStatus: "pending" },
   });
 
-  return res.status(200).json(new ApiResponse(200, noti, "Join request sent"));
+  return res.status(200).json(new ApiResponse(200, noti));
 });
 
 /* ============================================================
@@ -215,38 +231,82 @@ export const acceptJoinRequest = asyncHandler(async (req, res) => {
   const ownerId = req.user._id;
   const { notificationId } = req.body;
 
-  const noti = await Notification.findById(notificationId);
-  if (!noti || noti.type !== "trip_join_request")
-    throw new ApiError(404, "Invalid join request");
+  const noti = await Notification.findOne({
+    _id: notificationId,
+    recipient: ownerId,
+    type: "trip_join_request",
+  });
+
+  if (!noti) throw new ApiError(404, "Join request not found");
+  if (noti.metadata?.actionStatus !== "pending")
+    throw new ApiError(400, "Request already handled");
 
   const trip = await Trip.findById(noti.trip);
   if (!trip) throw new ApiError(404, "Trip not found");
 
   const requester = noti.sender;
 
-  if (!trip.participants.includes(requester)) trip.participants.push(requester);
+  if (!trip.participants.some((id) => id.toString() === requester.toString())) {
+    trip.participants.push(requester);
+    await trip.save();
+  }
 
-  await trip.save();
-
-  // auto-add to wallet
   const wallet = await TripWallet.findOne({ trip: trip._id });
-  if (wallet && !wallet.participants.includes(requester)) {
+  if (
+    wallet &&
+    !wallet.participants.some((id) => id.toString() === requester.toString())
+  ) {
     wallet.participants.push(requester);
     await wallet.save();
   }
 
+  await User.findByIdAndUpdate(requester, {
+    $addToSet: { trips: trip._id },
+  });
+
+  noti.metadata.actionStatus = "accepted";
   noti.isRead = true;
   await noti.save();
 
   await sendNotification({
     recipient: requester,
     sender: ownerId,
-    type: "trip_member_added",
+    type: "trip_join_accepted",
     message: "accepted your request to join the trip",
     trip: trip._id,
   });
 
-  return res.status(200).json(new ApiResponse(200, trip, "Request accepted"));
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { tripId: trip._id, status: "accepted" }));
 });
 
 //need some correction (models are not imported correctly)
+export const cancelTripInvite = asyncHandler(async (req, res) => {
+  const senderId = req.user._id;
+  const { notificationId } = req.body;
+
+  const noti = await Notification.findOne({
+    _id: notificationId,
+    sender: senderId,
+    type: "trip_invite",
+  });
+
+  if (!noti) throw new ApiError(404, "Invite not found");
+
+  if (noti.metadata?.actionStatus !== "pending") {
+    throw new ApiError(400, "Invite already handled");
+  }
+
+  noti.metadata.actionStatus = "cancelled";
+  await noti.save();
+
+  // Real-time update for recipient
+  emitToUser(noti.recipient, "notification_cancelled", {
+    notificationId: noti._id,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { status: "cancelled" }, "Invite cancelled"));
+});

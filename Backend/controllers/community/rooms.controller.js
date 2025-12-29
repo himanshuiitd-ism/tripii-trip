@@ -20,6 +20,7 @@ import {
   emitToCommunity,
   emitToRoom,
 } from "../../socket/server.js";
+import { TripWallet } from "../../models/trip/tripWallet.model.js";
 
 /**
  * Small local helper to sort members for display.
@@ -224,6 +225,11 @@ export const createRoom = asyncHandler(async (req, res) => {
     room.linkedTrip = trip._id;
 
     await room.save();
+
+    await User.updateMany(
+      { _id: { $in: roomMembers.map((m) => m.user) } },
+      { $addToSet: { trips: trip._id } }
+    );
   }
 
   // Update community
@@ -519,31 +525,86 @@ export const joinRoom = asyncHandler(async (req, res) => {
   const { roomId } = req.params;
   const userId = req.user._id;
 
-  const room = await Room.findById(roomId).select("parentCommunity members");
+  /* ---------------------------------------------------------
+     1️⃣ FETCH ROOM (MUST INCLUDE TRIP FIELDS)
+  --------------------------------------------------------- */
+  const room = await Room.findById(roomId).select(
+    "parentCommunity members roomtype linkedTrip name"
+  );
+
   if (!room) throw new ApiError(404, "Room not found");
 
+  /* ---------------------------------------------------------
+     2️⃣ COMMUNITY MEMBERSHIP CHECK
+  --------------------------------------------------------- */
   const membership = await CommunityMembership.findOne({
     community: room.parentCommunity,
     user: userId,
   });
+
   if (!membership)
     throw new ApiError(403, "Only community members can join this room");
 
-  const already = room.members.some(
+  /* ---------------------------------------------------------
+     3️⃣ ALREADY A ROOM MEMBER?
+  --------------------------------------------------------- */
+  const alreadyMember = room.members.some(
     (m) => m.user.toString() === userId.toString()
   );
-  if (already) throw new ApiError(409, "Already a member of this room");
 
-  room.members.push({ user: userId, role: "member", joinedAt: new Date() });
+  if (alreadyMember) throw new ApiError(409, "Already a member of this room");
+
+  /* ---------------------------------------------------------
+     4️⃣ ADD USER TO ROOM
+  --------------------------------------------------------- */
+  room.members.push({
+    user: userId,
+    role: "member",
+    joinedAt: new Date(),
+  });
+
   await room.save();
 
-  await User.findByIdAndUpdate(userId, { $addToSet: { rooms: roomId } });
+  /* ---------------------------------------------------------
+     5️⃣ ADD ROOM TO USER
+  --------------------------------------------------------- */
+  await User.findByIdAndUpdate(userId, {
+    $addToSet: { rooms: roomId },
+  });
 
+  /* ---------------------------------------------------------
+     6️⃣ 🔥 TRIP SYNC (ONLY IF TRIP ROOM)
+  --------------------------------------------------------- */
+  if (room.roomtype === "Trip" && room.linkedTrip) {
+    // Add user to Trip participants
+    await Trip.findByIdAndUpdate(room.linkedTrip, {
+      $addToSet: { participants: userId },
+    });
+
+    // Add trip to user's trips
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { trips: room.linkedTrip },
+    });
+
+    // Add user to Trip Wallet
+    const wallet = await TripWallet.findOne({ trip: room.linkedTrip });
+    if (wallet) {
+      await TripWallet.findByIdAndUpdate(wallet._id, {
+        $addToSet: { participants: userId },
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------
+     7️⃣ FETCH USER DATA FOR SOCKET PAYLOAD
+  --------------------------------------------------------- */
   const userData = await User.findById(userId)
     .select("username profilePicture.url")
     .lean();
 
-  // Emit to room
+  /* ---------------------------------------------------------
+     8️⃣ SOCKET: EMIT TO ROOM
+  --------------------------------------------------------- */
   emitToRoom(roomId.toString(), "room:userJoined", {
     roomId: room._id,
     user: {
@@ -555,23 +616,30 @@ export const joinRoom = asyncHandler(async (req, res) => {
     joinedAt: new Date(),
   });
 
-  // Also notify room members about new join (optional)
-  try {
-    await sendNotification({
-      recipient: room.members
-        .map((m) => m.user)
-        .filter((uid) => uid.toString() !== userId.toString()),
-      sender: userId,
-      type: "member_joined_room",
-      message: `${userData.username} joined ${room.name}`,
-      room: room._id,
-      community: room.parentCommunity,
-      metadata: { roomId: room._id },
-    });
-  } catch (e) {
-    // bulk notification might not be desired; keep non-fatal
+  /* ---------------------------------------------------------
+     9️⃣ NOTIFY OTHER ROOM MEMBERS (SAFE LOOP)
+  --------------------------------------------------------- */
+  for (const member of room.members) {
+    if (member.user.toString() !== userId.toString()) {
+      try {
+        await sendNotification({
+          recipient: member.user,
+          sender: userId,
+          type: "member_joined_room",
+          message: `${userData.username} joined ${room.name}`,
+          room: room._id,
+          community: room.parentCommunity,
+          metadata: { roomId: room._id },
+        });
+      } catch (err) {
+        // non-blocking
+      }
+    }
   }
 
+  /* ---------------------------------------------------------
+     🔟 RESPONSE
+  --------------------------------------------------------- */
   return res
     .status(200)
     .json(new ApiResponse(200, { user: userData }, "Joined room successfully"));

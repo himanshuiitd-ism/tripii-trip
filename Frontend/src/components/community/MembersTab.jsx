@@ -115,7 +115,11 @@ export default function MembersTab({ adminOnly = false }) {
                 className="flex items-center justify-between p-3 rounded-lg hover:bg-background-light transition"
               >
                 {/* LEFT */}
-                <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="flex items-center gap-3 min-w-0"
+                  onClick={() => navigate(`/profile/${user?._id}`)}
+                  style={{ cursor: "pointer" }}
+                >
                   <img
                     src={
                       user.profilePicture?.url ||

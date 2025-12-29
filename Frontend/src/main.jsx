@@ -27,7 +27,10 @@ import Places from "./pages/places/Places";
 import Chatbot from "./pages/chatbot/Chatbot";
 import CreateRoom from "./components/community/rooms/CreateRoom";
 import Room from "./components/community/rooms/Room";
+import TripLayout from "./shared/TripLayout";
 import ProfilePage from "./pages/profile/Profile";
+import Trips from "./components/trip/Trips";
+import Trip from "./components/trip/Trip";
 
 // Auth Logic
 function RequireAuth({ children }) {
@@ -91,8 +94,14 @@ function AppRouter() {
             <Route path="/chatbot" element={<Chatbot />} />
           </Route>
 
+          {/* Trip layout */}
+          <Route element={<TripLayout />}>
+            <Route path="/trips" element={<Trips />} />
+            <Route path="/trips/trip/:tripId" element={<Trip />} />
+          </Route>
+
           <Route path="/places" element={<Places />} />
-          <Route path="/profile/:id" element={<ProfilePage />}/>
+          <Route path="/profile/:id" element={<ProfilePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

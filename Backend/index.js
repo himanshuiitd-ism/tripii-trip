@@ -14,6 +14,7 @@ import communityRoute from "./routes/community.routes.js";
 import postRoute from "./routes/post.routes.js";
 import chatbotRoute from "./routes/chatbot.routes.js";
 import placesRoute from "./routes/places.routes.js";
+import tripRoute from "./routes/trip.routes.js";
 import { initSocket } from "./socket/server.js";
 
 dotenv.config({});
@@ -48,6 +49,7 @@ app.use("/api/community", communityRoute);
 app.use("/api/post", postRoute);
 app.use("/api/chatbot", chatbotRoute);
 app.use("/api/places", placesRoute);
+app.use("/api/trip", tripRoute);
 
 server.listen(PORT, () => {
   connectDB();
