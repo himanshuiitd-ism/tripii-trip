@@ -1,30 +1,28 @@
 const API_BASE = "http://localhost:8000/api/chatbot";
 
-export const fetchHistoryParams = async () => {
-  const response = await fetch(`${API_BASE}/history`, {
-    method: "GET",
-    headers: { accept: "application/json" },
+export const fetchChatHistory = async () => {
+  const res = await fetch(`${API_BASE}/history`, {
     credentials: "include",
   });
-  return await response.json();
+  return res.json();
 };
 
-export const fetchAiResponse = async (prompt) => {
-  const response = await fetch(`${API_BASE}/`, {
+export const sendPrompt = async (prompt) => {
+  const res = await fetch(`${API_BASE}/`, {
     method: "POST",
-    headers: { accept: "application/json", "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ prompt }),
-    credentials: "include",
   });
-  return await response.json();
+  return res.json();
 };
 
-export const saveMessage = async (id, text, sender) => {
-  const response = await fetch(`${API_BASE}/save`, {
-    method: "POST",
-    headers: { accept: "application/json", "Content-Type": "application/json" },
+export const updateChatMessage = async (messageId, text) => {
+  const res = await fetch(`${API_BASE}/${messageId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ id, text, sender }),
+    body: JSON.stringify({ text }),
   });
-  return await response.json();
+  return res.json();
 };

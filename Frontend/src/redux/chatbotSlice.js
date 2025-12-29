@@ -1,40 +1,27 @@
+import { fetchChatHistory, sendPrompt, updateChatMessage } from "@/api/chatbot";
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { fetchHistoryParams, fetchAiResponse, saveMessage } from "../api/chatbot.js";
 
-// 1. Thunk to load history
-export const chatbotLoadHistory = createAsyncThunk(
-  "chatbot/loadHistory", 
-  async () => {
-    const response = await fetchHistoryParams();
-    return response.data || [];
+/* ---------------- LOAD HISTORY ---------------- */
+export const chatbotLoadHistory = createAsyncThunk("chat/load", async () => {
+  const res = await fetchChatHistory();
+  return res.data; // full history from DB
+});
+
+/* ---------------- SEND PROMPT ---------------- */
+export const chatbotHandleUserMessage = createAsyncThunk(
+  "chat/send",
+  async (prompt) => {
+    const res = await sendPrompt(prompt);
+    return res.data; // ✅ ONLY AI message
   }
 );
 
-// 2. Thunk to handle the full chat flow
-export const chatbotHandleUserMessage = createAsyncThunk(
-  "chatbot/handleUserMessage",
-  async (prompt, { dispatch }) => {
-    const userMsg = { id: Date.now(), text: prompt, sender: "user" };
-
-    // Optimistic update
-    dispatch(chatbotAddMessage(userMsg));
-
-    // Save User Msg
-    await saveMessage(userMsg.id, userMsg.text, userMsg.sender);
-
-    // Get AI Response
-    const response = await fetchAiResponse(prompt);
-    
-    const text =
-      response?.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Error: No response";
-
-    const aiMsg = { id: Date.now() + 1, text: text, sender: "ai" };
-
-    // Save AI Msg
-    await saveMessage(aiMsg.id, aiMsg.text, aiMsg.sender);
-
-    return aiMsg;
+/* ---------------- EDIT AI MESSAGE ---------------- */
+export const chatbotEditMessage = createAsyncThunk(
+  "chat/edit",
+  async ({ messageId, text }) => {
+    await updateChatMessage(messageId, text);
+    return { messageId, text };
   }
 );
 
@@ -45,34 +32,50 @@ const chatbotSlice = createSlice({
     isLoading: false,
     error: null,
   },
+
   reducers: {
-    chatbotAddMessage: (state, action) => {
+    /* ✅ Optimistic user message */
+    addUserMessage: (state, action) => {
       state.messages.push(action.payload);
     },
   },
+
   extraReducers: (builder) => {
     builder
+
+      /* LOAD */
       .addCase(chatbotLoadHistory.fulfilled, (state, action) => {
         state.messages = action.payload;
       })
+
+      /* SEND */
       .addCase(chatbotHandleUserMessage.pending, (state) => {
         state.isLoading = true;
       })
+
       .addCase(chatbotHandleUserMessage.fulfilled, (state, action) => {
         state.isLoading = false;
+
+        // ✅ push ONLY AI message
         state.messages.push(action.payload);
       })
-      .addCase(chatbotHandleUserMessage.rejected, (state, action) => {
+
+      .addCase(chatbotHandleUserMessage.rejected, (state) => {
         state.isLoading = false;
-        state.error = action.error.message;
-        state.messages.push({
-          id: Date.now(),
-          text: "Sorry, something went wrong.",
-          sender: "ai",
-        });
+        state.error = "Failed to get AI response";
+      })
+
+      /* EDIT */
+      .addCase(chatbotEditMessage.fulfilled, (state, action) => {
+        const { messageId, text } = action.payload;
+        const msg = state.messages.find((m) => m.messageId === messageId);
+        if (msg) {
+          msg.text = text;
+          msg.edited = true;
+        }
       });
   },
 });
 
-export const { chatbotAddMessage } = chatbotSlice.actions;
+export const { addUserMessage } = chatbotSlice.actions;
 export default chatbotSlice.reducer;

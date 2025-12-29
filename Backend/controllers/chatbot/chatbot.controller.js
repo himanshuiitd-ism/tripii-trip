@@ -2,147 +2,197 @@ import asyncHandler from "../../utils/asyncHandler.js";
 import { GoogleGenAI } from "@google/genai";
 import { ApiError } from "../../utils/ApiError.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
-import { User } from "../../models/user/user.model.js";
+import { AiChat } from "../../models/user/AiChat.model.js";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-const SYSTEM_PROMPT = `
-You are Sunday, an intelligent travel assistant inside the TripiiTrip app.
+// intent detector
+function detectMode(prompt = "") {
+  const p = prompt.toLowerCase();
 
-RULES (MANDATORY):
-1. Always respond in clear bullet points.
-2. Always give a step-by-step travel plan.
-3. Always provide a budget estimate table at the end.
-4. Budget table MUST include:
-   - Transport / Flights
-   - Accommodation
-   - Local Expenses
-5. If exact prices are unknown, give LOW / MEDIUM / HIGH ranges.
-6. Be concise, practical, and structured.
-7. Remember previous conversation context and continue naturally.
-`;
+  const explainKeywords = [
+    "explain",
+    "why",
+    "how",
+    "detail",
+    "breakdown",
+    "more about",
+    "budget of",
+    "cost of",
+  ];
 
-export const getChatbotResponse = asyncHandler(async (req, res) => {
-  const { prompt } = req.body;
-  const userId = req.user?._id;
-
-  if (!prompt) {
-    throw new ApiError(400, "Prompt is required");
+  for (const k of explainKeywords) {
+    if (p.includes(k)) return "CHAT";
   }
 
-  const user = await User.findById(userId).select("aiChatHistory");
+  return "PLAN";
+}
 
-  const history = (user?.aiChatHistory || []).slice(-10).map((m) => ({
+/* =========================================================
+   SYSTEM PROMPT (Two types according to intent (plan generate or plan discussion)
+========================================================= */
+const PLAN_SYSTEM_PROMPT = `
+You are Sunday, an AI travel planner inside the TripiiTrip app.
+
+CRITICAL OUTPUT RULES (MANDATORY):
+- Output STRICT JSON only.
+- Do NOT include markdown, explanations, emojis, or extra text.
+- Do NOT wrap JSON in backticks.
+- If you cannot follow the schema exactly, return {}.
+- Every response must be directly usable by the app.
+
+JSON SCHEMA (MUST MATCH EXACTLY):
+{
+  "days": [
+    {
+      "day": 1,
+      "title": "",
+      "points": ["", "", ""]
+    }
+  ],
+  "budget": {
+    "transport": "LOW|MEDIUM|HIGH",
+    "accommodation": "LOW|MEDIUM|HIGH",
+    "local": "LOW|MEDIUM|HIGH"
+  }
+}
+
+CONTENT RULES:
+- Concise bullet points only.
+- Logical travel order.
+- No repetition.
+`;
+
+const CHAT_SYSTEM_PROMPT = `
+You are Sunday, a helpful travel assistant.
+
+The user ALREADY has a travel plan.
+Your job is to EXPLAIN or CLARIFY parts of that plan.
+
+RULES:
+- Do NOT generate a full itinerary.
+- Do NOT repeat the entire plan.
+- Respond in bullet points or short paragraphs.
+- Be concise and contextual.
+- Do NOT output JSON.
+`;
+
+/* =========================================================
+   POST: Get AI Response
+========================================================= */
+export const getChatbotResponse = asyncHandler(async (req, res) => {
+  const { prompt } = req.body;
+  const userId = req.user._id;
+
+  if (!prompt) throw new ApiError(400, "Prompt is required");
+
+  const mode = detectMode(prompt);
+
+  // Fetch last messages from AiChat model
+  const historyDocs = await AiChat.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+
+  const history = historyDocs.reverse().map((m) => ({
     role: m.sender === "user" ? "user" : "model",
     parts: [{ text: m.text }],
   }));
 
+  const systemPrompt =
+    mode === "PLAN" ? PLAN_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+
   const contents = [
-    {
-      role: "user",
-      parts: [{ text: `SYSTEM INSTRUCTIONS:\n${SYSTEM_PROMPT}` }],
-    },
+    { role: "user", parts: [{ text: systemPrompt }] },
     ...history,
-    {
-      role: "user",
-      parts: [{ text: prompt }],
-    },
+    { role: "user", parts: [{ text: prompt }] },
   ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents,
-      // ❗ REMOVE googleSearch for now
-    });
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents,
+  });
 
-    // ✅ SAFE TEXT EXTRACTION
-    let reply = "";
-    const candidate = response?.candidates?.[0];
+  let reply = "";
+  const candidate = response?.candidates?.[0];
 
-    if (candidate?.content?.parts) {
-      reply = candidate.content.parts
-        .map((p) => p.text)
-        .filter(Boolean)
-        .join("\n");
-    }
+  if (candidate?.content?.parts) {
+    reply = candidate.content.parts.map((p) => p.text).join("\n");
+  }
 
-    if (!reply) {
-      return res
-        .status(200)
-        .json(new ApiResponse(200, null, "No AI response generated"));
-    }
+  if (!reply) reply = mode === "PLAN" ? "{}" : "I couldn't clarify that.";
 
-    // ✅ SAVE WITH CORRECT ROLES
-    await User.findByIdAndUpdate(userId, {
-      $push: {
-        aiChatHistory: {
-          $each: [
-            { id: Date.now(), text: prompt, sender: "user" },
-            { id: Date.now() + 1, text: reply, sender: "model" },
-          ],
-          $slice: -50,
-        },
+  const baseId = Date.now();
+
+  await AiChat.insertMany([
+    {
+      user: userId,
+      messageId: baseId,
+      sender: "user",
+      text: prompt,
+    },
+    {
+      user: userId,
+      messageId: baseId + 1,
+      sender: "model",
+      text: reply,
+    },
+  ]);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        messageId: baseId + 1,
+        sender: "model",
+        text: reply,
       },
-    });
-
-    return res
-      .status(200)
-      .json(new ApiResponse(200, reply, "Sunday responded successfully"));
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    throw new ApiError(500, "Failed to get response from Sunday AI");
-  }
+      "Sunday responded"
+    )
+  );
 });
 
-export const saveChatHistory = asyncHandler(async (req, res) => {
-  //post
-  const { id, text, sender } = req.body;
-  const userId = req.user._id;
-  if (!id || !text || !sender) {
-    throw new ApiError(500, "All fields are required");
-  } else {
-    try {
-      await User.findByIdAndUpdate(
-        userId,
-        { $push: { aiChatHistory: { id, text, sender } } },
-        { new: true }
-      );
-      const apiResponse = new ApiResponse(
-        200,
-        null,
-        "Chat history saved successfully"
-      );
-      return res.status(200).json(apiResponse);
-    } catch (error) {
-      console.error("Error in saving:", error);
-      throw new ApiError(500, "Failed to save chat history");
-    }
-  }
+/* =========================================================
+   PATCH: Edit AI Message (USER-SIDE EDIT ONLY)
+========================================================= */
+export const updateAIMessage = asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const { text } = req.body;
+
+  const updated = await AiChat.findOneAndUpdate(
+    {
+      user: req.user._id,
+      messageId,
+      sender: "model",
+    },
+    { text },
+    { new: true }
+  );
+
+  if (!updated) throw new ApiError(404, "Message not found");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updated, "AI message updated"));
 });
 
+/* =========================================================
+   GET: Chat History
+========================================================= */
 export const getChatHistory = asyncHandler(async (req, res) => {
-  //get
-
   const userId = req.user?._id;
 
   if (!userId) {
-    console.error("Unauthorized access attempt to get chat history");
-    throw new ApiError(401, "Unauthorized access");
+    throw new ApiError(401, "Unauthorized");
   }
-  try {
-    const user = await User.findById(userId);
-    const chatHistory = user.aiChatHistory || [];
-    const apiResponse = new ApiResponse(
-      200,
-      chatHistory,
-      "Chat history retrieved successfully"
-    );
-    return res.status(200).json(apiResponse);
-  } catch (error) {
-    console.error("Error in retrieving the chats:", error);
-    throw new ApiError(500, "Failed to retrieve chat history");
-  }
+
+  const chats = await AiChat.find({ user: userId })
+    .sort({ createdAt: 1 })
+    .lean();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, chats, "Chat history retrieved successfully"));
 });

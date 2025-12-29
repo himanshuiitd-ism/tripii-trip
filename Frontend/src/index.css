@@ -977,7 +977,7 @@ body {
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
 }
 
@@ -1055,14 +1055,20 @@ body {
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
 
 /* Friends */
 .rs-friend-list {
-  margin-top: 1.5rem
+  margin-top: 1.5rem;
 }
 
 .rs-friend {
@@ -1501,4 +1507,88 @@ body {
 
 .trips-trip :hover {
   background-color: rgb(250, 255, 255);
+}
+
+/* TripSidebar Container */
+
+.trip-sidebar-shell {
+  position: relative; /* 👈 REQUIRED */
+  width: 18.5vw;
+  min-width: 18.5vw;
+  height: 100vh;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+/* FLOATING BUTTON */
+.trip-sidebar-float-btn {
+  position: absolute;
+  top: 90px; /* below navbar */
+  right: -14px; /* slightly outside sidebar */
+  z-index: 50;
+
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #01b98b;
+  color: white;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.trip-sidebar-float-btn:hover {
+  transform: scale(1.1);
+  background: #019f78;
+}
+
+/* PANELS */
+.trip-sidebar-panels {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.trip-sidebar-panels .panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+  transition: all 0.35s ease;
+}
+
+.trip-sidebar-panels .panel.show {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.trip-sidebar-float-btn {
+  transition: transform 0.25s ease, background 0.2s ease;
+}
+
+.trip-sidebar-float-btn.rotate {
+  transform: rotate(180deg);
+}
+
+.trip-sidebar-panels .panel.show > * {
+  animation: sidebarFade 0.3s ease forwards;
+}
+
+@keyframes sidebarFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -108,18 +108,6 @@ const userSchema = new Schema(
       publicId: { type: String, default: "" },
     },
 
-    aiChatHistory: [
-      {
-        id: { type: Number, default: Date.now() },
-        text: { type: String, default: "Error occurred" },
-        sender: {
-          type: String,
-          enum: ["user", "ai", "Error occurred"],
-          default: "Error occurred",
-        },
-      },
-    ],
-
     bio: { type: String, default: "" },
 
     followers: [{ type: Schema.Types.ObjectId, ref: "User" }],

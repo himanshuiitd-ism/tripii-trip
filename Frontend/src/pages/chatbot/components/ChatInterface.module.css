@@ -39,10 +39,21 @@
 /* Bot Message specific styles */
 .botMessage {
   align-self: flex-start; /* Pushes to the left */
-  background-color: #a0f9eb;
+  /* background-color: #a0f9eb; */
   color: #333;
   border-bottom-left-radius: 4px;
   max-width: 60%;
+}
+
+.botDiscussionMessage {
+  background-color: white;
+  color: #222;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  padding: 14px 18px;
+  max-width: 65%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  font-size: 0.95rem;
 }
 
 /* LOADING DOTS ANIMATION */
@@ -150,4 +161,266 @@
   font-size: 16px;
   font-weight: 600;
   color: #222;
+}
+
+.planContainer {
+  background: #f7fffd;
+  border-radius: 14px;
+  padding: 14px;
+  max-width: 650px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dayCard {
+  background: white;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.dayTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.pointsList {
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.budgetRow {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e6fffa;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.applyBtn {
+  align-self: flex-end;
+  background: #01b98b;
+  color: black;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* -------- PLAN WRAPPER -------- */
+.planWrapper {
+  background: linear-gradient(180deg, #f9fffd, #ffffff);
+  border-radius: 18px;
+  padding: 18px;
+  max-width: 720px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* -------- HEADER -------- */
+.planHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.planBadge {
+  background: #01b98b;
+  color: black;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.planSubtitle {
+  font-size: 12px;
+  color: #666;
+}
+
+/* -------- DAYS GRID -------- */
+.daysGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+/* -------- DAY CARD -------- */
+.dayCard {
+  background: white;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid #eef2f2;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dayCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.dayHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dayNumber {
+  background: #e6fffa;
+  color: #00796b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.dayTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #222;
+}
+
+/* -------- POINTS -------- */
+.pointList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pointList li {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #444;
+}
+
+.bulletDot {
+  width: 6px;
+  height: 6px;
+  background: #01b98b;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* -------- BUDGET -------- */
+.budgetCard {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f1fffc;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.budgetItem {
+  font-size: 12px;
+  color: #444;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.budgetItem strong {
+  font-weight: 700;
+  color: #000;
+}
+
+/* -------- ACTIONS -------- */
+.planActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.primaryBtn {
+  background: #01b98b;
+  color: black;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  background: #00a37a;
+}
+
+.secondaryBtn {
+  background: transparent;
+  border: 1px solid #ccc;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* For Editing */
+
+.editTextarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.editActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.dayTitleInput,
+.pointInput {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed #ccc;
+  font-size: inherit;
+  color: inherit;
+}
+
+.pointInput:focus,
+.dayTitleInput:focus {
+  outline: none;
+  border-color: #01b98b;
+}
+
+.addPointBtn {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #01b98b;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.deletePoint {
+  margin-left: 6px;
+  background: none;
+  border: none;
+  color: #ff4d4f;
+  cursor: pointer;
 }

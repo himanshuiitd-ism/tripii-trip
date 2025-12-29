@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 function InputArea({
   inputValue,
   setInputValue,
-  onClickHandler,
+  onSend,
   isLoading,
   onKeyPress,
 }) {
@@ -22,19 +22,20 @@ function InputArea({
     <div className={styles.chatArea}>
       <textarea
         ref={textAreaRef}
-        key={`prompt`}
         className={styles.inputField}
         placeholder="Ask Sunday AI..."
         value={inputValue}
         disabled={isLoading}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={onKeyPress}
-      ></textarea>
-      <button className={styles.enterButton}>
-        <AiOutlineSend
-          className={styles.submitIcon}
-          onClick={() => onClickHandler(inputValue, setInputValue)}
-        ></AiOutlineSend>
+      />
+
+      <button
+        className={styles.enterButton}
+        disabled={isLoading || !inputValue.trim()}
+        onClick={onSend}
+      >
+        <AiOutlineSend className={styles.submitIcon} />
       </button>
     </div>
   );
