@@ -36,6 +36,7 @@ const ReviewPhotos = ({ category, images, onImagesChange, setErrors }) => {
 
   const removeImage = (index) => {
     const updatedImages = images.filter((_, indx) => indx !== index);
+    onImagesChange(updatedImages);
   };
 
   return (
