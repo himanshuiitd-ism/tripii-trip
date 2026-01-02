@@ -16,7 +16,6 @@ const overviewSchema = new Schema(
     },
     lastSearched: {
       type: Number,
-      required: true,
       default: Date.now,
     },
   },
