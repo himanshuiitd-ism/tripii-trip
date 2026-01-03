@@ -6,7 +6,14 @@ const tripRoleSchema = new Schema(
 
     roleName: {
       type: String,
-      enum: ["Captain", "Cameraman", "Cook", "Navigator", "Accountant"],
+      enum: [
+        "Captain",
+        "Cameraman",
+        "Cook",
+        "Navigator",
+        "Accountant",
+        "Planner",
+      ],
       required: true,
     },
 

@@ -54,11 +54,15 @@ const CreateTripModal = ({ isOpen, onClose }) => {
       data.append("visibility", formData.visibility);
 
       // Location fields (backend expects these)
-      data.append("location[city]", formData.city);
-      data.append("location[state]", formData.state);
-      data.append("location[country]", formData.country);
+      data.append("city", formData.city.trim());
+      data.append("state", formData.state.trim());
+      data.append("country", formData.country.trim());
 
       if (coverImage) data.append("coverPhoto", coverImage);
+
+      for (const [key, value] of data.entries()) {
+        console.log(key, value);
+      }
 
       const res = await createTrip(data);
 

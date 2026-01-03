@@ -23,33 +23,67 @@ import {
   removeMemberFromCommunity,
 } from "@/redux/communitySlice";
 import { updateRoomMembers } from "@/redux/roomSlice.js";
+import { EVENTS } from "./events.js";
+import {
+  addTripPhoto,
+  addTripPhotos,
+  addTripPlan,
+  removeTripPhoto,
+  removeTripPlan,
+  reorderTripPlansOptimistic,
+  updateTripPhotoVisibility,
+  updateTripPlan,
+} from "@/redux/tripSlice.js";
 
 const SocketProvider = ({ children }) => {
   const dispatch = useDispatch();
   const user = useSelector((s) => s.auth?.user);
   const selectedCommunity = useSelector((s) => s.community.selectedCommunity);
   const communityProfile = useSelector((s) => s.community.profile);
+  const activeTripId = useSelector((s) => s.trip.activeTripId);
+  const galleryLoaded = useSelector((s) => !!s.trip.tripPhotos[activeTripId]); //This is so that I calls tripGallery related api in that jsx file , means redux may not have tripId in start when it's socket ask for.
 
+  // -----------------------
+  // SYNC ON FOCUS
+  // -----------------------
   useEffect(() => {
-    const onFocus = () => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && socket.connected) {
+        socket.emit("sync:request");
+      }
+    };
+
+    const handleFocus = () => {
       if (socket.connected) {
         socket.emit("sync:request");
       }
     };
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        onFocus();
-      }
-    });
-
-    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
+  // -----------------------
+  // TRIP ROOM JOIN / LEAVE
+  // -----------------------
+  useEffect(() => {
+    if (!user || !activeTripId || !socket.connected) return;
+
+    socket.emit(EVENTS.TRIP_JOIN, activeTripId);
+
+    return () => {
+      socket.emit(EVENTS.TRIP_LEAVE, activeTripId);
+    };
+  }, [user, activeTripId]);
+
+  // -----------------------
+  // SOCKET CONNECTION & EVENTS
+  // -----------------------
   useEffect(() => {
     if (!user) {
       disconnectSocket();
@@ -63,7 +97,9 @@ const SocketProvider = ({ children }) => {
       dispatch(setSocketConnected(true));
       try {
         socket.emit("identify", { userId: user._id });
-      } catch (e) {}
+      } catch (e) {
+        console.error("Failed to identify user:", e);
+      }
     });
 
     socket.on("disconnect", () => {
@@ -105,6 +141,7 @@ const SocketProvider = ({ children }) => {
     socket.on("community:message:pinned", (payload) => {
       dispatch(pinCommunityMessage(payload));
     });
+
     socket.on("community:message:unpinned", ({ messageId }) => {
       dispatch(unpinCommunityMessage(messageId));
     });
@@ -140,9 +177,6 @@ const SocketProvider = ({ children }) => {
       // optional: mark community notifications as seen
     });
 
-    // -----------------------
-    // COMMUNITY COMMENTS
-    // -----------------------
     socket.on(
       "community:message:commentCount",
       ({ messageId, commentCount }) => {
@@ -155,9 +189,6 @@ const SocketProvider = ({ children }) => {
       }
     );
 
-    // -----------------------
-    // MESSAGE HELPFUL
-    // -----------------------
     socket.on(
       "community:message:helpful",
       ({ messageId, helpfulCount, helpful }) => {
@@ -172,7 +203,7 @@ const SocketProvider = ({ children }) => {
     );
 
     // -----------------------
-    // ROOM EVENTS - 🔥 KEY CHANGES HERE
+    // ROOM EVENTS
     // -----------------------
     socket.on("room:userJoined", ({ roomId, user: joinedUser }) => {
       dispatch(
@@ -189,7 +220,6 @@ const SocketProvider = ({ children }) => {
         })
       );
 
-      // Update the room's member list
       dispatch(
         updateRoomMembers({
           user: joinedUser,
@@ -199,17 +229,13 @@ const SocketProvider = ({ children }) => {
       );
     });
 
-    // 🔥 CRITICAL: Handle room:created event
     socket.on("room:created", (data) => {
-      console.log("Room created event received:", data);
       const { room, trip, activity } = data;
 
-      // Add room to Redux store (will appear in RightSidebar and RoomsTab)
       if (room) {
         dispatch(addCommunityRoom(room));
       }
 
-      // Add activity
       if (activity) {
         dispatch(addCommunityActivity(activity));
       } else {
@@ -222,7 +248,6 @@ const SocketProvider = ({ children }) => {
         );
       }
 
-      // Add notification
       dispatch(addNotification({ type: "room:created", payload: data }));
     });
 
@@ -248,7 +273,9 @@ const SocketProvider = ({ children }) => {
       }
     });
 
-    //community settings
+    // -----------------------
+    // COMMUNITY SETTINGS
+    // -----------------------
     socket.on("member:bulk_added", ({ members }) => {
       dispatch(addMembersToCommunity(members));
     });
@@ -261,7 +288,92 @@ const SocketProvider = ({ children }) => {
       dispatch(removeMemberFromCommunity(userId));
     });
 
-    // cleanup on unmount or user change
+    // -----------------------
+    // TRIP / ITINERARY EVENTS
+    // -----------------------
+
+    socket.on(EVENTS.ITINERARY_CREATED, ({ plan }) => {
+      // ✅ Ignore own creations (already added via API response)
+      if (plan.createdBy?._id === user?._id) return;
+      dispatch(addTripPlan(plan));
+    });
+
+    socket.on(EVENTS.ITINERARY_UPDATED, ({ plan }) => {
+      dispatch(updateTripPlan(plan));
+    });
+
+    socket.on(EVENTS.ITINERARY_DELETED, ({ planId }) => {
+      if (!activeTripId) return;
+
+      dispatch(
+        removeTripPlan({
+          tripId: activeTripId,
+          planId,
+        })
+      );
+    });
+
+    socket.on(EVENTS.ITINERARY_REORDERED, ({ date, orderedPlanIds }) => {
+      if (!activeTripId) return;
+
+      dispatch(
+        reorderTripPlansOptimistic({
+          tripId: activeTripId,
+          date,
+          orderedPlanIds,
+        })
+      );
+    });
+
+    socket.on(EVENTS.ITINERARY_AI_ADDED, ({ plans }) => {
+      plans.forEach((plan) => {
+        dispatch(addTripPlan(plan));
+      });
+    });
+
+    // -----------------------
+    // TRIP / GALLERY EVENTS
+    // -----------------------
+
+    socket.on(EVENTS.TRIP_PHOTO_UPLOADED, ({ photo, photos }) => {
+      if (!activeTripId || !galleryLoaded) return;
+
+      const uploaderId = photo?.uploadedBy?._id || photos?.[0]?.uploadedBy?._id;
+      if (uploaderId === user?._id) return;
+
+      dispatch(
+        addTripPhotos({
+          tripId: activeTripId,
+          photos: photos ?? [photo],
+        })
+      );
+    });
+
+    socket.on(EVENTS.TRIP_PHOTO_PUSHED, ({ photos }) => {
+      if (!activeTripId || !Array.isArray(photos)) return;
+
+      dispatch(
+        addTripPhotos({
+          tripId: activeTripId,
+          photos,
+        })
+      );
+    });
+
+    socket.on(EVENTS.TRIP_PHOTO_DELETED, ({ photoId }) => {
+      if (!activeTripId || !galleryLoaded) return;
+
+      dispatch(
+        removeTripPhoto({
+          tripId: activeTripId,
+          photoId,
+        })
+      );
+    });
+
+    // -----------------------
+    // CLEANUP
+    // -----------------------
     return () => {
       socket.off("connect");
       socket.off("disconnect");
@@ -274,7 +386,6 @@ const SocketProvider = ({ children }) => {
       socket.off("community:poll:updated");
       socket.off("community:message:pinned");
       socket.off("community:message:unpinned");
-
       socket.off("community:message:commentCount");
       socket.off("community:message:helpful");
       socket.off("community:updated");
@@ -292,8 +403,17 @@ const SocketProvider = ({ children }) => {
       socket.off("member:bulk_added");
       socket.off("role:updated");
       socket.off("member:removed");
+
+      socket.off(EVENTS.ITINERARY_CREATED);
+      socket.off(EVENTS.ITINERARY_UPDATED);
+      socket.off(EVENTS.ITINERARY_DELETED);
+      socket.off(EVENTS.ITINERARY_REORDERED);
+      socket.off(EVENTS.ITINERARY_AI_ADDED);
+      socket.off(EVENTS.TRIP_PHOTO_UPLOADED);
+      socket.off(EVENTS.TRIP_PHOTO_PUSHED);
+      socket.off(EVENTS.TRIP_PHOTO_DELETED);
     };
-  }, [user, dispatch, selectedCommunity, communityProfile]);
+  }, [user, dispatch, selectedCommunity, communityProfile, activeTripId]);
 
   return <>{children}</>;
 };

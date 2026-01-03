@@ -2,7 +2,12 @@ import mongoose, { Schema } from "mongoose";
 
 const tripPhotoSchema = new Schema(
   {
-    trip: { type: Schema.Types.ObjectId, ref: "Trip", required: true },
+    trip: {
+      type: Schema.Types.ObjectId,
+      ref: "Trip",
+      required: true,
+      index: true,
+    },
 
     image: {
       url: String,
@@ -15,6 +20,7 @@ const tripPhotoSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     location: {
@@ -25,16 +31,30 @@ const tripPhotoSchema = new Schema(
       },
     },
 
-    likes: [{ type: Schema.Types.ObjectId, ref: "User" }],
-    comments: [
-      {
-        user: { type: Schema.Types.ObjectId, ref: "User" },
-        text: String,
-        timestamp: { type: Date, default: Date.now },
-      },
-    ],
+    /* 🔑 VISIBILITY CONTROL */
+    visibility: {
+      type: String,
+      enum: ["local", "global"],
+      default: "local",
+      index: true,
+    },
 
-    autoPosted: { type: Boolean, default: false },
+    /* ❤️ LIKE SYSTEM (COUNT ONLY) */
+    likesCount: {
+      type: Number,
+      default: 0,
+    },
+
+    /* ⬇️ DOWNLOAD CONTROL */
+    allowDownload: {
+      type: Boolean,
+      default: true,
+    },
+
+    autoPosted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

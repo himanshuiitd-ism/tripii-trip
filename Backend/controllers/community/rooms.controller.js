@@ -21,6 +21,7 @@ import {
   emitToRoom,
 } from "../../socket/server.js";
 import { TripWallet } from "../../models/trip/tripWallet.model.js";
+import { optimizeImageBuffer } from "../../utils/sharpImage.js";
 
 /**
  * Small local helper to sort members for display.
@@ -54,11 +55,25 @@ const sortMembers = (
  * Upload media helper for room messages
  */
 const uploadRoomMedia = async (file, roomId) => {
-  const uri = getDataUri(file);
-  const folder = `rooms/${roomId}/media`;
+  let uri;
+
+  if (file.mimetype.startsWith("image/")) {
+    const optimizedBuffer = await optimizeImageBuffer(file.buffer, {
+      maxWidth: 1600,
+      maxHeight: 1600,
+      quality: 78,
+    });
+
+    uri = getDataUri({
+      buffer: optimizedBuffer,
+      mimetype: "image/jpeg",
+    });
+  } else {
+    uri = getDataUri(file); // non-image untouched
+  }
 
   const result = await cloudinary.uploader.upload(uri.content, {
-    folder,
+    folder: `rooms/${roomId}/media`,
     resource_type: "auto",
     transformation: [{ quality: "auto", fetch_format: "auto" }],
   });

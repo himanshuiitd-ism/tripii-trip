@@ -1,14 +1,27 @@
-// src/components/layout/Navbar.jsx
 import { useSelector } from "react-redux";
 import profileimage from "../../public/travel.jpg";
 import { Bell, MessageSquare } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { logoutRequest } from "@/api/auth";
 import { disconnectSocket } from "../../Socket.js";
 
 const Navbar = () => {
   const { userProfile } = useSelector((store) => store.auth);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  /* ---------- ACTIVE CHECKERS ---------- */
+  const isActive = (path) => pathname === path;
+
+  const isCommunity =
+    pathname.startsWith("/community") || pathname.startsWith("/communities");
+  const isTrips = pathname.startsWith("/trips");
+  const isPlaces = pathname.startsWith("/places");
+  const isSunday = pathname.startsWith("/chatbot");
+  const isContribution = pathname.startsWith("/contribute");
+  const isHome =
+    pathname === "/" ||
+    (!isCommunity && !isTrips && !isPlaces && !isSunday && !isContribution);
 
   return (
     <div className="navbar">
@@ -19,15 +32,52 @@ const Navbar = () => {
 
       {/* Middle Navigation */}
       <div className="navbar-middle">
-        <button onClick={() => navigate("/")}>Home</button>
-        <button onClick={() => navigate("/communities")}>Communities</button>
-        <button onClick={() => navigate("/chatbot")}>Sunday AI</button>
-        <button onClick={() => navigate("/trips")}>Trips</button>
-        <button onClick={() => navigate("/places")}>Places</button>
-        <button onClick={() => navigate("/contribute")}>Contribute</button>
+        <button
+          className={isHome ? "nav-active" : ""}
+          onClick={() => navigate("/")}
+        >
+          Home
+        </button>
+
+        <button
+          className={isCommunity ? "nav-active" : ""}
+          onClick={() => navigate("/communities")}
+        >
+          Communities
+        </button>
+
+        <button
+          className={isSunday ? "nav-active" : ""}
+          onClick={() => navigate("/chatbot")}
+        >
+          Sunday AI
+        </button>
+
+        <button
+          className={isTrips ? "nav-active" : ""}
+          onClick={() => navigate("/trips")}
+        >
+          Trips
+        </button>
+
+        <button
+          className={isPlaces ? "nav-active" : ""}
+          onClick={() => navigate("/places")}
+        >
+          Places
+        </button>
+
+        <button
+          className={isContribution ? "nav-active" : ""}
+          onClick={() => navigate("/contribute")}
+        >
+          Contribute
+        </button>
+
         <button
           onClick={() => {
-            logoutRequest(), disconnectSocket();
+            logoutRequest();
+            disconnectSocket();
           }}
         >
           Logout
@@ -42,15 +92,13 @@ const Navbar = () => {
         <button className="icon-btn">
           <MessageSquare size={22} />
         </button>
-        {/* <button className="navbar-profile"> */}{" "}
-        {/*Done for testing purposes*/}
+
         <Link to={`/profile/${userProfile._id}`} className="navbar-profile">
           <img
             src={userProfile?.profilePicture?.url || profileimage}
             alt="profile"
           />
         </Link>
-        {/* </button> */}
       </div>
     </div>
   );

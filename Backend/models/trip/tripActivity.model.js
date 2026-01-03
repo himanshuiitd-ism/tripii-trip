@@ -12,7 +12,12 @@ const tripActivitySchema = new Schema(
         "checklist_added",
         "checklist_completed",
         "expense_added",
+        "expense_updated",
+        "expense_deleted",
         "photo_uploaded",
+        "settlement_payer_confirmed",
+        "settlement_receiver_confirmed",
+        "settlement_completed",
       ],
     },
 

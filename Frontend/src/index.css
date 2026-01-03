@@ -95,6 +95,23 @@ body {
   gap: 18px;
 }
 
+.navbar-middle button {
+  padding: 6px 12px;
+  font-size: 14px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.navbar-middle button.nav-active {
+  background: rgb(45, 212, 191);
+  color: #111;
+  font-weight: 600;
+}
+
+.navbar-middle button:hover {
+  background: rgba(45, 212, 191, 0.2);
+}
+
 .icon-btn {
   background: none;
   border: none;
@@ -1454,14 +1471,14 @@ body {
   border-radius: 8px;
   padding: 0 8px;
   gap: 6px;
-  background-color: rgb(172, 255, 255);
-  border: 1px solid cyan;
+  background-color: rgb(172, 255, 229);
+  border: 1px solid rgba(0, 255, 229);
   font-weight: 600;
   width: 48%;
   transition: all 0.2s ease-in-out;
 }
 .rrs-Addlinks-button:hover {
-  background-color: rgb(0, 255, 255);
+  background-color: rgba(0, 255, 229);
 }
 /* MEMBERS */
 .rrs-section-header {
@@ -1518,6 +1535,7 @@ body {
   height: 100vh;
   background: #fff;
   flex-shrink: 0;
+  border-right: 1px solid rgb(173, 173, 173);
 }
 
 /* FLOATING BUTTON */
@@ -1592,3 +1610,9 @@ body {
     transform: translateY(0);
   }
 }
+
+.tripPlan-plannerName:hover {
+  color: rgb(0, 198, 178);
+}
+
+/* ApplyToTripOverlay */

@@ -18,6 +18,7 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { emitToUser } from "../../socket/server.js";
 import cloudinary from "../../utils/cloudinary.js";
 import getDataUri from "../../utils/datauri.js";
+import { optimizeImageBuffer } from "../../utils/sharpImage.js";
 
 /* ============================================================
    🔥 HELPER: UPLOAD TRIP COVER IMAGE
@@ -25,7 +26,16 @@ import getDataUri from "../../utils/datauri.js";
 const uploadCoverImageForTrip = async (file, tripId) => {
   if (!file) return null;
 
-  const uri = getDataUri(file);
+  const optimizedBuffer = await optimizeImageBuffer(file.buffer, {
+    maxWidth: 1920,
+    maxHeight: 1080,
+    quality: 82,
+  });
+
+  const uri = getDataUri({
+    buffer: optimizedBuffer,
+    mimetype: "image/jpeg",
+  });
 
   const uploaded = await cloudinary.uploader.upload(uri.content, {
     folder: `trips/${tripId}/cover`,
@@ -34,13 +44,7 @@ const uploadCoverImageForTrip = async (file, tripId) => {
     invalidate: true,
     resource_type: "image",
     transformation: [
-      {
-        width: 1280,
-        height: 720,
-        crop: "fill",
-        gravity: "center",
-        quality: "auto",
-      },
+      { width: 1280, height: 720, crop: "fill", gravity: "center" },
       { fetch_format: "auto" },
     ],
   });
@@ -71,16 +75,26 @@ export const createTrip = asyncHandler(async (req, res) => {
       invitedUsers = [],
     } = req.body;
 
-    // Handle nested location fields from FormData
     const location = {
-      city: req.body["location[city]"] || req.body.city,
-      state: req.body["location[state]"] || req.body.state,
-      country: req.body["location[country]"] || req.body.country,
+      city: req.body.city?.trim(),
+      state: req.body.state?.trim(),
+      country: req.body.country?.trim(),
     };
 
     /* ---------------- VALIDATION ---------------- */
-    if (!title || !type || !startDate || !endDate || !location?.city) {
-      throw new ApiError(400, "Missing required trip fields");
+    const missingFields = [];
+
+    if (!title) missingFields.push("title");
+    if (!type) missingFields.push("type");
+    if (!startDate) missingFields.push("startDate");
+    if (!endDate) missingFields.push("endDate");
+    if (!location?.city) missingFields.push("location.city");
+
+    if (missingFields.length > 0) {
+      throw new ApiError(
+        400,
+        `Missing required trip fields: ${missingFields.join(", ")}`
+      );
     }
 
     /* ---------------- 1️⃣ CREATE TRIP ---------------- */
@@ -107,6 +121,9 @@ export const createTrip = asyncHandler(async (req, res) => {
       trip.coverPhoto = cover;
       await trip.save({ session });
     }
+
+    console.log("BODY:", req.body);
+    console.log("FILE:", req.file);
 
     /* ---------------- 3️⃣ CREATE WALLET ---------------- */
     const [wallet] = await TripWallet.create(
@@ -233,7 +250,6 @@ export const getAllUserTripData = asyncHandler(async (req, res) => {
         tripActivities: [],
         tripChecklists: [],
         tripClosures: [],
-        tripPhotos: [],
         tripPlaces: [],
         tripRoles: [],
         tripWallets: [],
@@ -262,6 +278,7 @@ export const getAllUserTripData = asyncHandler(async (req, res) => {
 
   // 5️⃣ Fetch paginated trips
   const trips = await Trip.find(tripQuery)
+    .populate("createdBy", "username")
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
@@ -276,23 +293,20 @@ export const getAllUserTripData = asyncHandler(async (req, res) => {
     tripActivities,
     tripChecklists,
     tripClosures,
-    tripPhotos,
     tripPlaces,
     tripRoles,
     tripWallets,
   ] = await Promise.all([
     Expense.find({ trip: { $in: pageTripIds } }).lean(),
-    TripPlan.find({ trip: { $in: pageTripIds } }).lean(),
+    TripPlan.find({ trip: { $in: pageTripIds } })
+      .populate("createdBy", "username")
+      .lean(),
     TripActivity.find({ trip: { $in: pageTripIds } })
       .sort({ createdAt: -1 })
       .limit(200)
       .lean(),
     TripChecklist.find({ trip: { $in: pageTripIds } }).lean(),
     TripClosure.find({ trip: { $in: pageTripIds } }).lean(),
-    TripPhoto.find({ trip: { $in: pageTripIds } })
-      .select("trip url createdAt")
-      .limit(100)
-      .lean(),
     TripPlace.find({ trip: { $in: pageTripIds } }).lean(),
     TripRole.find({ trip: { $in: pageTripIds } }).lean(),
     TripWallet.find({ trip: { $in: pageTripIds } }).lean(),
@@ -312,7 +326,6 @@ export const getAllUserTripData = asyncHandler(async (req, res) => {
       tripActivities,
       tripChecklists,
       tripClosures,
-      tripPhotos,
       tripPlaces,
       tripRoles,
       tripWallets,

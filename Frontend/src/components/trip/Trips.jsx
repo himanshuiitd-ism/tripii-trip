@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Search, Plus, Calendar, MapPin, Users } from "lucide-react";
+import { Search, Plus, Calendar, MapPin, Users, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import useGetMyTrips from "@/hooks/useGetMyTrips";
 import { resetPagination, setPaginationMeta } from "@/redux/tripSlice";
@@ -25,6 +25,8 @@ const SearchBar = ({ value, onChange }) => (
 /* ---------------- TRIP CARD ---------------- */
 const TripCard = ({ trip, showAllButtons = false }) => {
   const navigate = useNavigate();
+
+  console.log("Trips:", trip);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -75,15 +77,18 @@ const TripCard = ({ trip, showAllButtons = false }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-gray-600 mb-3">
+          <div className="flex items-center gap-3 text-xs text-gray-600 mb-3 flex-wrap">
+            {/* LOCATION */}
             <div className="flex items-center gap-1">
               <MapPin size={12} />
               <span>
-                {trip.location?.city ||
-                  trip.location?.name ||
-                  "Location not set"}
+                {trip.location?.city || "Location not set"},{" "}
+                {trip.location?.state || "Location not set"},{" "}
+                {trip.location?.country || "Location not set"}
               </span>
             </div>
+
+            {/* MEMBERS */}
             <div className="flex items-center gap-1">
               <Users size={12} />
               <span>
@@ -91,6 +96,29 @@ const TripCard = ({ trip, showAllButtons = false }) => {
                 {trip.participants?.length !== 1 ? "s" : ""}
               </span>
             </div>
+
+            {/* CREATED BY */}
+            {trip.createdBy?.username && (
+              <div className="flex items-center gap-1 text-gray-500">
+                <span>by</span>
+                <span>
+                  {" "}
+                  <User size={12} />{" "}
+                </span>
+                <span
+                  className="font-medium text-gray-600 tripPlan-plannerName"
+                  style={{ cursor: "pointer" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/profile/${trip.createdBy._id}`);
+                  }}
+                >
+                  {trip.createdBy.username}
+                </span>
+              </div>
+            )}
+
+            {/* TYPE */}
             <span className="px-1.5 py-0.5 bg-teal-50 text-teal-600 rounded-full text-xs font-medium capitalize">
               {trip.type || trip.status}
             </span>

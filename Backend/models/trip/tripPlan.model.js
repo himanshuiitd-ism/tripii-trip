@@ -15,6 +15,8 @@ const tripPlanSchema = new Schema(
       trim: true,
     },
 
+    sequence: { type: Number, required: true, min: 1 },
+
     description: {
       type: String,
       trim: true,
@@ -54,5 +56,7 @@ const tripPlanSchema = new Schema(
   },
   { timestamps: true }
 );
+
+tripPlanSchema.index({ trip: 1, date: 1, sequence: 1 });
 
 export const TripPlan = mongoose.model("TripPlan", tripPlanSchema);

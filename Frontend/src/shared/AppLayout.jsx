@@ -6,6 +6,7 @@ import useGetSuggestedCommunities from "@/hooks/useGetSuggestedCommunities";
 import useGetMyCommunities from "@/hooks/useGetMyCommunities";
 import useGetRooms from "@/hooks/useGetRooms";
 import useGetMyTrips from "@/hooks/useGetMyTrips";
+import GlobalUploadBar from "@/components/GlobalUploadBar";
 
 const AppLayout = () => {
   const { loading, error } = useGetAllPost();
@@ -20,6 +21,8 @@ const AppLayout = () => {
   return (
     <div>
       <Navbar />
+
+      <GlobalUploadBar />
       <div>
         <Outlet />
       </div>

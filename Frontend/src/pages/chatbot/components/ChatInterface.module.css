@@ -21,28 +21,28 @@
   max-width: 70%;
   padding: 12px 18px;
   border-radius: 18px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1.4;
   position: relative;
   animation: slideUpFade 0.4s ease forwards;
 }
 
-/* User Message specific styles */
+/* User Message */
 .userMessage {
-  align-self: flex-end; /* Pushes to the right */
+  align-self: flex-end;
   background-color: #007bff;
   color: white;
   border-bottom-right-radius: 4px;
   max-width: 60%;
 }
 
-/* Bot Message specific styles */
+/* Bot Message */
 .botMessage {
-  align-self: flex-start; /* Pushes to the left */
-  /* background-color: #a0f9eb; */
+  align-self: flex-start;
   color: #333;
   border-bottom-left-radius: 4px;
-  max-width: 60%;
+  max-width: 70%;
+  width: 70%;
 }
 
 .botDiscussionMessage {
@@ -53,10 +53,10 @@
   padding: 14px 18px;
   max-width: 65%;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
-/* LOADING DOTS ANIMATION */
+/* LOADING DOTS */
 .loadingBubble {
   align-self: flex-start;
   background-color: #f1f0f0;
@@ -123,7 +123,7 @@
 }
 
 .sundayName {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #222;
 }
@@ -134,226 +134,344 @@
   width: 100%;
 }
 
-/* User → Right side */
 .userWrapper {
   align-items: flex-end;
 }
 
-/* AI → Left side */
 .botWrapper {
   align-items: flex-start;
 }
 
-/* Sunday header */
-.sundayHeader {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 3px;
-  margin-left: 4px;
-}
+/* ==================== TRIP PLAN EDITOR ==================== */
 
-.sundayIcon {
-  font-size: 20px;
-}
-
-.sundayName {
-  font-size: 16px;
-  font-weight: 600;
-  color: #222;
-}
-
-.planContainer {
-  background: #f7fffd;
-  border-radius: 14px;
-  padding: 14px;
-  max-width: 650px;
+.wrapper {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
-.dayCard {
-  background: white;
-  border-radius: 10px;
-  padding: 12px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-
-.dayTitle {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.pointsList {
-  padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.budgetRow {
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 600;
-  background: #e6fffa;
-  padding: 10px;
-  border-radius: 10px;
-}
-
-.applyBtn {
-  align-self: flex-end;
-  background: #01b98b;
-  color: black;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* -------- PLAN WRAPPER -------- */
-.planWrapper {
-  background: linear-gradient(180deg, #f9fffd, #ffffff);
-  border-radius: 18px;
-  padding: 18px;
-  max-width: 720px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-/* -------- HEADER -------- */
-.planHeader {
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
 }
 
-.planBadge {
+.badge {
   background: #01b98b;
   color: black;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-
-.planSubtitle {
-  font-size: 12px;
-  color: #666;
-}
-
-/* -------- DAYS GRID -------- */
-.daysGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-/* -------- DAY CARD -------- */
-.dayCard {
-  background: white;
-  border-radius: 14px;
-  padding: 14px;
-  border: 1px solid #eef2f2;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.dayCard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
-}
-
-.dayHeader {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.dayNumber {
-  background: #e6fffa;
-  color: #00796b;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
 }
 
-.dayTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: #222;
+.sub {
+  font-size: 11px;
+  color: #666;
 }
 
-/* -------- POINTS -------- */
-.pointList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+/* All days in single container */
+.days {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 16px;
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f0f0f0;
 }
 
-.pointList li {
+.dayCard {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.dayCard:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dayHeader {
   display: flex;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.4;
-  color: #444;
-}
-
-.bulletDot {
-  width: 6px;
-  height: 6px;
-  background: #01b98b;
-  border-radius: 50%;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-
-/* -------- BUDGET -------- */
-.budgetCard {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  background: #f1fffc;
-  border-radius: 14px;
-  padding: 12px;
-}
-
-.budgetItem {
-  font-size: 12px;
-  color: #444;
-  display: flex;
-  gap: 4px;
   align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.budgetItem strong {
-  font-weight: 700;
+.dayIndex {
+  font-weight: 900;
+  font-size: 13px;
   color: #000;
 }
 
-/* -------- ACTIONS -------- */
-.planActions {
+.dayDate {
+  font-size: 11px;
+  color: #888;
+}
+
+.daySummary {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.daySummaryInput {
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.daySummaryInput:focus {
+  outline: none;
+  border-color: #01b98b;
+}
+
+/* Plans as bullet points */
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.planItem {
+  display: flex;
+}
+
+.planRow {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.bullet {
+  color: #01b98b;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.planContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.planTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+}
+
+.planTitleInput {
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  outline: none;
+  border-bottom: 1px dashed #ddd;
+  padding: 2px 0;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.planTitleInput:focus {
+  border-bottom-color: #01b98b;
+}
+
+.deleteBtn {
+  background: #fee;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 5px;
+  cursor: pointer;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+  opacity: 1;
+  background: #fdd;
+}
+
+.planMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #01b98b;
+  font-weight: 500;
+}
+
+.timeInput {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+.timeInput:focus {
+  outline: none;
+  border-color: #01b98b;
+}
+
+.planDesc {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.planDescInput {
+  width: 100%;
+  font-size: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.planDescInput:focus {
+  outline: none;
+  border-color: #01b98b;
+}
+
+.planLocation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #777;
+}
+
+.locationInput {
+  border: none;
+  outline: none;
+  font-size: 11px;
+  background: transparent;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 1px 0;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.locationInput:focus {
+  border-bottom-color: #01b98b;
+}
+
+.weatherNote {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+.addPlanBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px dashed #01b98b;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #01b98b;
+  cursor: pointer;
+  margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.addPlanBtn:hover {
+  background: #f0fdf9;
+}
+
+.budget {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  justify-content: space-around;
+}
+
+.budgetItem {
+  display: flex;
+  gap: 5px;
+  color: #555;
+}
+
+.budgetItem strong {
+  color: #000;
+  font-weight: 700;
+}
+
+.planIntro {
+  background: #f0fdfa;
+  border-left: 3px solid #01b98b;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.planIntroTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 4px;
+}
+
+.planIntroDesc {
+  font-size: 12px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.planActions,
+.editActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .primaryBtn {
   background: #01b98b;
   color: black;
   border: none;
-  padding: 8px 16px;
-  border-radius: 12px;
+  padding: 7px 14px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -366,61 +484,34 @@
 .secondaryBtn {
   background: transparent;
   border: 1px solid #ccc;
-  padding: 8px 14px;
-  border-radius: 12px;
+  padding: 7px 14px;
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
-/* For Editing */
-
-.editTextarea {
-  width: 100%;
-  min-height: 160px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  font-family: monospace;
-  resize: vertical;
-}
-
-.editActions {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.dayTitleInput,
-.pointInput {
-  width: 100%;
-  background: transparent;
-  border: none;
-  border-bottom: 1px dashed #ccc;
-  font-size: inherit;
-  color: inherit;
-}
-
-.pointInput:focus,
-.dayTitleInput:focus {
-  outline: none;
+.secondaryBtn:hover {
   border-color: #01b98b;
-}
-
-.addPointBtn {
-  margin-top: 6px;
-  font-size: 12px;
   color: #01b98b;
-  background: none;
-  border: none;
-  cursor: pointer;
 }
 
-.deletePoint {
-  margin-left: 6px;
-  background: none;
-  border: none;
-  color: #ff4d4f;
-  cursor: pointer;
+@media (max-width: 768px) {
+  .chatHistoryContainer {
+    padding: 12px;
+  }
+
+  .messageBubble {
+    max-width: 85%;
+  }
+
+  .userMessage,
+  .botMessage,
+  .botDiscussionMessage {
+    max-width: 85%;
+  }
+
+  .botMessage {
+    width: 85%;
+  }
 }

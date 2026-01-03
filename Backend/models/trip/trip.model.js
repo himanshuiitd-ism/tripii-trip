@@ -83,8 +83,7 @@ const tripSchema = new Schema(
     // PLANS & CHECKLISTS
     plans: [{ type: Schema.Types.ObjectId, ref: "TripPlan" }],
     checklist: [{ type: Schema.Types.ObjectId, ref: "TripChecklist" }],
-    gallery: [{ type: Schema.Types.ObjectId, ref: "TripPhoto" }],
-    wallet: [{ type: Schema.Types.ObjectId, ref: "TripWallet" }],
+    wallet: { type: Schema.Types.ObjectId, ref: "TripWallet" },
     roles: [{ type: Schema.Types.ObjectId, ref: "TripRole" }],
     activityHistory: [{ type: Schema.Types.ObjectId, ref: "TripActivity" }],
 
@@ -116,9 +115,18 @@ const tripSchema = new Schema(
       perPersonSpent: Number,
       settlements: [
         {
-          from: { type: Schema.Types.ObjectId, ref: "User" },
-          to: { type: Schema.Types.ObjectId, ref: "User" },
-          amount: Number,
+          from: { type: Schema.Types.ObjectId, ref: "User", required: true },
+          to: { type: Schema.Types.ObjectId, ref: "User", required: true },
+          amount: { type: Number, required: true },
+
+          payerConfirmed: { type: Boolean, default: false }, // A paid
+          receiverConfirmed: { type: Boolean, default: false }, // B received
+
+          dueAt: { type: Date, required: true }, // completedAt + 7 days
+          settledAt: Date,
+
+          trustEvaluated: { type: Boolean, default: false },
+
           _id: false,
         },
       ],

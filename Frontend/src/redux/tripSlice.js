@@ -15,8 +15,8 @@ const initialState = {
 
   /* ---------------- TRIPS ---------------- */
   trips: {
-    list: [], // paginated trips
-    byId: {}, // normalized for O(1) access
+    list: [],
+    byId: {},
   },
 
   activeTripId: null,
@@ -27,7 +27,7 @@ const initialState = {
   tripActivities: {},
   tripChecklists: {},
   tripClosures: {},
-  tripPhotos: {},
+  tripPhotos: {}, // { [tripId]: Photo[] }
   tripPlaces: {},
   tripRoles: {},
   tripWallets: {},
@@ -116,17 +116,35 @@ const tripSlice = createSlice({
         tripActivities = [],
         tripChecklists = [],
         tripClosures = [],
-        tripPhotos = [],
         tripPlaces = [],
         tripRoles = [],
         tripWallets = [],
       } = action.payload;
 
+      // Clear existing data first
+      state.expenses = {};
+      state.tripPlans = {};
+      state.tripActivities = {};
+      state.tripChecklists = {};
+      state.tripClosures = {};
+      state.tripPlaces = {};
+      state.tripRoles = {};
+      state.tripWallets = {};
+
       const mapByTrip = (target, items) => {
         items.forEach((item) => {
-          const tripId = item.trip;
+          const tripId =
+            typeof item.trip === "object" ? item.trip._id : item.trip;
+
           if (!target[tripId]) target[tripId] = [];
-          target[tripId].push(item);
+
+          const exists = target[tripId].some(
+            (existing) => existing._id === item._id
+          );
+
+          if (!exists) {
+            target[tripId].push(item);
+          }
         });
       };
 
@@ -135,17 +153,209 @@ const tripSlice = createSlice({
       mapByTrip(state.tripActivities, tripActivities);
       mapByTrip(state.tripChecklists, tripChecklists);
       mapByTrip(state.tripClosures, tripClosures);
-      mapByTrip(state.tripPhotos, tripPhotos);
+
       mapByTrip(state.tripPlaces, tripPlaces);
       mapByTrip(state.tripRoles, tripRoles);
 
       tripWallets.forEach((wallet) => {
-        state.tripWallets[wallet.trip] = wallet;
+        const tripId =
+          typeof wallet.trip === "object" ? wallet.trip._id : wallet.trip;
+        state.tripWallets[tripId] = wallet;
       });
     },
 
-    clearTripState() {
-      return initialState;
+    addTripPlan(state, action) {
+      const plan = action.payload;
+      const tripId = typeof plan.trip === "object" ? plan.trip._id : plan.trip;
+
+      if (!state.tripPlans[tripId]) {
+        state.tripPlans[tripId] = [];
+      }
+
+      state.tripPlans[tripId].push(plan);
+
+      // Keep plans ordered by date + sequence
+      state.tripPlans[tripId].sort((a, b) => {
+        if (a.date !== b.date) {
+          return new Date(a.date) - new Date(b.date);
+        }
+        return a.sequence - b.sequence;
+      });
+    },
+
+    clearTripSession(state) {
+      state.loading = false;
+      state.error = null;
+      state.activeTripId = null;
+    },
+    reorderTripPlansOptimistic(state, action) {
+      const { tripId, date, orderedPlanIds } = action.payload;
+
+      if (!state.tripPlans[tripId]) return;
+
+      const day = new Date(date).toISOString().split("T")[0];
+
+      const sameDayPlans = [];
+      const otherPlans = [];
+
+      state.tripPlans[tripId].forEach((plan) => {
+        const planDay = new Date(plan.date).toISOString().split("T")[0];
+        if (planDay === day) sameDayPlans.push(plan);
+        else otherPlans.push(plan);
+      });
+
+      const planMap = {};
+      sameDayPlans.forEach((p) => {
+        planMap[p._id] = p;
+      });
+
+      const reordered = orderedPlanIds.map((id, index) => ({
+        ...planMap[id],
+        sequence: index + 1,
+      }));
+
+      state.tripPlans[tripId] = [...otherPlans, ...reordered];
+
+      state.tripPlans[tripId].sort((a, b) => {
+        if (a.date !== b.date) {
+          return new Date(a.date) - new Date(b.date);
+        }
+        return a.sequence - b.sequence;
+      });
+    },
+
+    updateTripPlan(state, action) {
+      const updatedPlan = action.payload;
+      const tripId =
+        typeof updatedPlan.trip === "object"
+          ? updatedPlan.trip._id
+          : updatedPlan.trip;
+
+      if (!state.tripPlans[tripId]) return;
+
+      const idx = state.tripPlans[tripId].findIndex(
+        (p) => p._id === updatedPlan._id
+      );
+
+      if (idx !== -1) {
+        state.tripPlans[tripId][idx] = updatedPlan;
+      }
+    },
+
+    removeTripPlan(state, action) {
+      const { tripId, planId } = action.payload;
+
+      if (!state.tripPlans[tripId]) return;
+
+      state.tripPlans[tripId] = state.tripPlans[tripId].filter(
+        (p) => p._id !== planId
+      );
+    },
+
+    /* ================= TRIP PHOTOS ================= */
+
+    /**
+     * ✅ FIXED: Replaces entire photo array for a trip
+     * Used after fetching from API to ensure clean state
+     */
+    addTripPhotos(state, action) {
+      const { tripId, photos, replace = false } = action.payload;
+
+      if (replace) {
+        state.tripPhotos[tripId] = photos;
+        return;
+      }
+      if (!tripId) return;
+
+      const list = Array.isArray(photos) ? photos : photos ? [photos] : [];
+      if (!list.length) return;
+
+      // ✅ Create a Set of existing photo IDs for O(1) lookup
+      const existingIds = new Set(
+        (state.tripPhotos[tripId] || []).map((p) => p._id)
+      );
+
+      // ✅ Only add truly new photos
+      const newPhotos = list.filter((photo) => {
+        if (!photo?._id) return false;
+        return !existingIds.has(photo._id);
+      });
+
+      if (newPhotos.length === 0) return;
+
+      if (!state.tripPhotos[tripId]) {
+        state.tripPhotos[tripId] = [];
+      }
+
+      // ✅ Add new photos at the beginning (newest first)
+      state.tripPhotos[tripId] = [...newPhotos, ...state.tripPhotos[tripId]];
+
+      // ✅ Sort by createdAt (newest first)
+      state.tripPhotos[tripId].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+    },
+
+    /**
+     * ✅ DEPRECATED: Use addTripPhotos instead
+     * Kept for backward compatibility
+     */
+    addTripPhoto(state, action) {
+      const photo = action.payload;
+      const tripId =
+        typeof photo.trip === "object" ? photo.trip._id : photo.trip;
+
+      if (!state.tripPhotos[tripId]) {
+        state.tripPhotos[tripId] = [];
+      }
+
+      const exists = state.tripPhotos[tripId].some((p) => p._id === photo._id);
+
+      if (!exists) {
+        state.tripPhotos[tripId].unshift(photo);
+      }
+    },
+
+    clearTripGallery(state, action) {
+      const tripId = action.payload;
+      delete state.tripPhotos[tripId];
+    },
+    /**
+     * ✅ Removes photo from Redux state
+     */
+    removeTripPhoto(state, action) {
+      const { tripId, photoId } = action.payload;
+
+      if (!state.tripPhotos[tripId]) return;
+
+      state.tripPhotos[tripId] = state.tripPhotos[tripId].filter(
+        (p) => p._id !== photoId
+      );
+    },
+
+    /**
+     * ✅ Updates photo visibility (for push to global)
+     */
+    updateTripPhotoVisibility(state, action) {
+      const { tripId, photoId, visibility } = action.payload;
+
+      if (!state.tripPhotos[tripId]) return;
+
+      const photo = state.tripPhotos[tripId].find((p) => p._id === photoId);
+      if (photo) {
+        state.tripPhotos[tripId] = state.tripPhotos[tripId].map((p) =>
+          p._id === photoId ? { ...p, visibility } : p
+        );
+      }
+    },
+    updateTripPhoto(state, action) {
+      const { tripId, photoId, updates } = action.payload;
+
+      if (!state.tripPhotos[tripId]) return;
+
+      state.tripPhotos[tripId] = state.tripPhotos[tripId].map((p) =>
+        p._id === photoId ? { ...p, ...updates } : p
+      );
     },
   },
 });
@@ -163,7 +373,17 @@ export const {
   setActiveTrip,
   clearActiveTrip,
   hydrateTripData,
-  clearTripState,
+  clearTripSession,
+  addTripPlan,
+  reorderTripPlansOptimistic,
+  updateTripPlan,
+  removeTripPlan,
+  addTripPhoto,
+  clearTripGallery,
+  addTripPhotos,
+  removeTripPhoto,
+  updateTripPhotoVisibility,
+  updateTripPhoto,
 } = tripSlice.actions;
 
 export default tripSlice.reducer;

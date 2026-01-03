@@ -47,4 +47,5 @@ export const POINTS = {
   // --------------------------
   verified_contribution: { xp: 100, trust: 20 },
   booking_done: { xp: 50, trust: 5 },
+  late_settlement: { xp: 0, trust: -5 },
 };

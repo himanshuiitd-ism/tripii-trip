@@ -3,6 +3,7 @@ import userSocket from "./user.socket.js";
 import communitySocket from "./community.socket.js";
 import chatSocket from "./chat.socket.js";
 import { EVENTS } from "./events.js";
+import tripSocket from "./trip.socket.js";
 
 let io = null;
 
@@ -26,6 +27,7 @@ export function initSocket(server) {
     userSocket(io, socket, userSocketMap, userLastSeen);
     communitySocket(io, socket, communityRooms, typingMap);
     chatSocket(io, socket);
+    tripSocket(io, socket);
   });
 
   return io;
@@ -51,6 +53,11 @@ export const emitToRoom = (roomId, event, payload) => {
 export const emitToMessage = (messageId, event, data) => {
   if (!io || !messageId) return;
   io.to(`message:${String(messageId)}`).emit(event, data);
+};
+
+export const emitToTrip = (tripId, event, payload) => {
+  if (!io || !tripId) return;
+  io.to(`trip:${String(tripId)}`).emit(event, payload);
 };
 
 export const isUserOnline = (id) => !!userSocketMap[id];

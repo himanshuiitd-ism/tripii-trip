@@ -51,5 +51,6 @@ const expenseSchema = new Schema(
   },
   { timestamps: true }
 );
+expenseSchema.index({ wallet: 1, expenseDate: -1 });
 
 export const Expense = mongoose.model("Expense", expenseSchema);

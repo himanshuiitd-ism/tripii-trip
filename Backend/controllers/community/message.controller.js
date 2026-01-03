@@ -22,30 +22,32 @@ import { CommComment } from "../../models/community/CommCommunity.model.js";
 import { Notification } from "../../models/user/notification.model.js";
 import { Activity } from "../../models/community/activity.model.js";
 import { User } from "../../models/user/user.model.js";
+import { optimizeImageBuffer } from "../../utils/sharpImage.js";
 
 /**
  * Upload media helper
  */
 const uploadMedia = async (file, communityId) => {
-  const uri = getDataUri(file);
+  let uri;
 
-  const isImage = file.mimetype.startsWith("image/");
+  if (file.mimetype.startsWith("image/")) {
+    const optimizedBuffer = await optimizeImageBuffer(file.buffer, {
+      maxWidth: 1280,
+      maxHeight: 1280,
+      quality: 75,
+    });
+
+    uri = getDataUri({
+      buffer: optimizedBuffer,
+      mimetype: "image/jpeg",
+    });
+  } else {
+    uri = getDataUri(file);
+  }
 
   const result = await cloudinary.uploader.upload(uri.content, {
     folder: `communities/${communityId}/media`,
     resource_type: "auto",
-
-    // 🔥 CRITICAL: resize + compress at upload time
-    transformation: isImage
-      ? [
-          {
-            width: 1280, // limit resolution
-            crop: "limit",
-            quality: "auto:eco", // stronger compression
-            fetch_format: "auto", // webp/avif when possible
-          },
-        ]
-      : undefined,
   });
 
   return {
@@ -56,7 +58,7 @@ const uploadMedia = async (file, communityId) => {
         ? `image/${result.format}`
         : file.mimetype,
     originalName: file.originalname,
-    size: result.bytes, // 🔥 compressed size
+    size: result.bytes,
   };
 };
 

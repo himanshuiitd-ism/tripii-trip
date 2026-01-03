@@ -12,22 +12,66 @@ const ai = new GoogleGenAI({
 function detectMode(prompt = "") {
   const p = prompt.toLowerCase();
 
+  // 🔹 Place overview intent
+  const overviewKeywords = [
+    "tell me about",
+    "about ",
+    "overview of",
+    "guide to",
+    "is ",
+  ];
+
+  // If short prompt + looks like a place
+  if (overviewKeywords.some((k) => p.includes(k)) && p.split(" ").length <= 6) {
+    return "OVERVIEW";
+  }
+
+  // 🔹 Explanation / clarification
   const explainKeywords = [
     "explain",
     "why",
     "how",
     "detail",
-    "breakdown",
-    "more about",
     "budget of",
     "cost of",
+    "elaborate",
   ];
 
-  for (const k of explainKeywords) {
-    if (p.includes(k)) return "CHAT";
+  if (explainKeywords.some((k) => p.includes(k))) {
+    return "CHAT";
   }
 
+  // 🔹 Default: planning
   return "PLAN";
+}
+
+/* =========================================================
+   HELPER: Extract JSON from markdown-wrapped response
+========================================================= */
+function extractJSON(text) {
+  // Remove markdown code blocks
+  const cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  try {
+    // Try to parse the cleaned text
+    return JSON.parse(cleaned);
+  } catch (e) {
+    // If parsing fails, try to find JSON object in the text
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e2) {
+        console.error("Failed to extract JSON:", e2);
+        return null;
+      }
+    }
+    console.error("No valid JSON found in response");
+    return null;
+  }
 }
 
 /* =========================================================
@@ -35,21 +79,50 @@ function detectMode(prompt = "") {
 ========================================================= */
 const PLAN_SYSTEM_PROMPT = `
 You are Sunday, an AI travel planner inside the TripiiTrip app.
+Generate an itinerary that can be directly imported as trip plans.
 
-CRITICAL OUTPUT RULES (MANDATORY):
+CRITICAL RULES:
 - Output STRICT JSON only.
-- Do NOT include markdown, explanations, emojis, or extra text.
-- Do NOT wrap JSON in backticks.
-- If you cannot follow the schema exactly, return {}.
-- Every response must be directly usable by the app.
+- No markdown, emojis, comments, or extra text.
+- Follow the schema exactly or return {""} as their value.
 
-JSON SCHEMA (MUST MATCH EXACTLY):
+TIME RULES:
+- Every activity MUST include time.
+- Use realistic ranges:
+  Morning: 07:00–11:00
+  Afternoon: 12:00–16:00
+  Evening: 17:00–20:00
+  Night: 20:00–23:00
+- Schedule outdoor activities during pleasant hours.
+- If timing depends on weather, explain briefly in "weatherReason".
+
+DATE RULES:
+- Use YYYY-MM-DD.
+- Dates must be continuous.
+- Day 1 aligns with inferred start date.
+
+CONTENT RULES:
+- 3–6 activities per day.
+- Practical travel order.
+- Short, actionable descriptions.
+- No repetition.
+
+JSON SCHEMA:
 {
   "days": [
     {
       "day": 1,
-      "title": "",
-      "points": ["", "", ""]
+      "date": "YYYY-MM-DD",
+      "summary": "",
+      "plans": [
+        {
+          "title": "",
+          "description": "",
+          "time": { "start": "HH:MM", "end": "HH:MM" },
+          "location": { "name": "", "address": "" },
+          "weatherReason": ""
+        }
+      ]
     }
   ],
   "budget": {
@@ -58,11 +131,6 @@ JSON SCHEMA (MUST MATCH EXACTLY):
     "local": "LOW|MEDIUM|HIGH"
   }
 }
-
-CONTENT RULES:
-- Concise bullet points only.
-- Logical travel order.
-- No repetition.
 `;
 
 const CHAT_SYSTEM_PROMPT = `
@@ -79,6 +147,31 @@ RULES:
 - Do NOT output JSON.
 `;
 
+const OVERVIEW_SYSTEM_PROMPT = `
+You are Sunday, a travel assistant.
+
+The user is asking for a COUNTRY or PLACE OVERVIEW.
+
+RULES:
+- Do NOT generate a day-wise itinerary.
+- Do NOT return JSON.
+- Use short paragraphs with clear category separation.
+- Match the tone and length of a "budget explanation" response.
+- Keep it practical and travel-focused.
+
+CATEGORIES TO COVER (in this order):
+1. What the place is famous for
+2. Local food & specialties
+3. Typical budget (LOW / MEDIUM / HIGH explanation)
+4. Common tourist scams or things to be careful about
+5. Best time or quick travel tip (optional)
+
+FORMAT:
+- Plain text
+- Clear section headers
+- Concise explanations
+`;
+
 /* =========================================================
    POST: Get AI Response
 ========================================================= */
@@ -93,7 +186,7 @@ export const getChatbotResponse = asyncHandler(async (req, res) => {
   // Fetch last messages from AiChat model
   const historyDocs = await AiChat.find({ user: userId })
     .sort({ createdAt: -1 })
-    .limit(10)
+    .limit(3)
     .lean();
 
   const history = historyDocs.reverse().map((m) => ({
@@ -102,7 +195,11 @@ export const getChatbotResponse = asyncHandler(async (req, res) => {
   }));
 
   const systemPrompt =
-    mode === "PLAN" ? PLAN_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+    mode === "PLAN"
+      ? PLAN_SYSTEM_PROMPT
+      : mode === "CHAT"
+      ? CHAT_SYSTEM_PROMPT
+      : OVERVIEW_SYSTEM_PROMPT;
 
   const contents = [
     { role: "user", parts: [{ text: systemPrompt }] },
@@ -124,6 +221,17 @@ export const getChatbotResponse = asyncHandler(async (req, res) => {
 
   if (!reply) reply = mode === "PLAN" ? "{}" : "I couldn't clarify that.";
 
+  // 🔹 CLEAN JSON FOR PLAN MODE
+  let finalReply = reply;
+  if (mode === "PLAN") {
+    const extracted = extractJSON(reply);
+    if (extracted) {
+      finalReply = JSON.stringify(extracted);
+    } else {
+      console.warn("Failed to extract valid JSON, storing raw response");
+    }
+  }
+
   const baseId = Date.now();
 
   await AiChat.insertMany([
@@ -137,17 +245,18 @@ export const getChatbotResponse = asyncHandler(async (req, res) => {
       user: userId,
       messageId: baseId + 1,
       sender: "model",
-      text: reply,
+      text: finalReply,
     },
   ]);
 
+  console.log("Reply is:", finalReply);
   return res.status(200).json(
     new ApiResponse(
       200,
       {
         messageId: baseId + 1,
         sender: "model",
-        text: reply,
+        text: finalReply,
       },
       "Sunday responded"
     )

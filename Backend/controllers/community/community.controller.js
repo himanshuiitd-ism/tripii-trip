@@ -15,17 +15,27 @@ import { sendNotification } from "../user/notification.controller.js";
 import { emitToUser, emitToCommunity } from "../../socket/server.js";
 import { Room } from "../../models/community/room.model.js";
 import { settings } from "cluster";
+import { optimizeImageBuffer } from "../../utils/sharpImage.js";
 
 /**
  * Upload cover image to the proper community folder.
  * Returns { url, publicId }.
  */
 const uploadCoverImageForCommunity = async (file, communityId) => {
-  const uri = getDataUri(file);
+  const optimizedBuffer = await optimizeImageBuffer(file.buffer, {
+    maxWidth: 1600,
+    maxHeight: 600,
+    quality: 80,
+  });
+
+  const uri = getDataUri({
+    buffer: optimizedBuffer,
+    mimetype: "image/jpeg",
+  });
 
   const uploaded = await cloudinary.uploader.upload(uri.content, {
     folder: `communities/${communityId}/cover`,
-    public_id: "main", // cleaner
+    public_id: "main",
     overwrite: true,
     invalidate: true,
     resource_type: "image",

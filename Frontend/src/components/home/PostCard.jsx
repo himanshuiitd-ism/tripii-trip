@@ -28,6 +28,7 @@ const PostCard = ({ post }) => {
   const { userProfile } = useSelector((s) => s.auth);
 
   const [isLiked, setIsLiked] = useState(post.likes.includes(userProfile?._id));
+  const [likeCount, setLikeCount] = useState(post.likes.length);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const [inlineComment, setInlineComment] = useState("");
@@ -38,17 +39,27 @@ const PostCard = ({ post }) => {
   const handleLike = async () => {
     if (!userProfile) return toast.error("Login required");
 
-    const prev = isLiked;
-    setIsLiked(!isLiked); // optimistic
+    const prevLiked = isLiked;
+    const prevCount = likeCount;
+
+    // 🔥 optimistic UI
+    setIsLiked(!prevLiked);
+    setLikeCount((c) => (prevLiked ? c - 1 : c + 1));
 
     try {
       const res = await toggleLike(post._id);
+
+      // sync with backend truth
       dispatch(updatePost({ ...post, likes: res.data.data.likes }));
 
-      if (res.data.data.updatedUser)
+      if (res.data.data.updatedUser) {
         dispatch(setUserProfile(res.data.data.updatedUser));
+      }
     } catch (err) {
-      setIsLiked(prev);
+      // rollback on failure
+      setIsLiked(prevLiked);
+      setLikeCount(prevCount);
+      toast.error("Failed to update like");
     }
   };
 
@@ -97,13 +108,16 @@ const PostCard = ({ post }) => {
     <div className="postcard">
       {/* HEADER */}
       <div className="postcard-header">
-        <Link to = {`/profile/${post.author._id}`}>
-        <img
-          src={post.author?.profilePicture?.url || "/travel.jpg"}
-          className="postcard-avatar"
-        />
+        <Link to={`/profile/${post.author._id}`}>
+          <img
+            src={post.author?.profilePicture?.url || "/travel.jpg"}
+            className="postcard-avatar"
+          />
         </Link>
-        <Link to = {`/profile/${post.author._id}`} className="postcard-header-info">
+        <Link
+          to={`/profile/${post.author._id}`}
+          className="postcard-header-info"
+        >
           <p className="postcard-username">{post.author.username}</p>
           <p className="postcard-time">
             {new Date(post.createdAt).toLocaleString()}
@@ -167,7 +181,7 @@ const PostCard = ({ post }) => {
       <div className="postcard-actions">
         <button className="postcard-action-btn" onClick={handleLike}>
           <Heart size={18} className={isLiked ? "postcard-liked" : ""} />
-          <span>{post.likes?.length || 0}</span>
+          <span>{likeCount}</span>
         </button>
 
         <button
